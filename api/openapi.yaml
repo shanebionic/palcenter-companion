@@ -52,6 +52,8 @@ components:
         - apiVersion
         - startedAt
         - uptimeSeconds
+        - instanceId
+        - checks
       properties:
         status:
           type: string
@@ -68,6 +70,13 @@ components:
         uptimeSeconds:
           type: integer
           minimum: 0
+        instanceId:
+          type: string
+          format: uuid
+        checks:
+          type: object
+          additionalProperties:
+            type: string
     VersionResponse:
       type: object
       additionalProperties: false
@@ -75,6 +84,7 @@ components:
         - application
         - applicationVersion
         - apiVersion
+        - compatibility
       properties:
         application:
           type: string
@@ -87,28 +97,39 @@ components:
         apiVersion:
           type: string
           const: v1
+        buildCommit:
+          type: string
+        buildBranch:
+          type: string
+        buildDate:
+          type: string
+        compiler:
+          type: string
+        palworldVersion:
+          type: [string, "null"]
+        ue4ssVersion:
+          type: [string, "null"]
+        compatibility:
+          type: object
+          additionalProperties:
+            type: string
     CapabilitiesResponse:
       type: object
       additionalProperties: true
-      required:
-        - events
-        - guilds
-        - bases
-        - performance
-        - moderation
+      required: [schemaVersion, categories]
       properties:
-        events:
+        schemaVersion:
+          type: string
+        categories:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/Capability"
+    Capability:
+      type: object
+      required: [supported, capabilityVersion]
+      properties:
+        supported:
           type: boolean
-          default: false
-        guilds:
-          type: boolean
-          default: false
-        bases:
-          type: boolean
-          default: false
-        performance:
-          type: boolean
-          default: false
-        moderation:
-          type: boolean
-          default: false
+        capabilityVersion:
+          type: string
+      additionalProperties: true

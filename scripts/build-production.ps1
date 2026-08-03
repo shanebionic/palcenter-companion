@@ -35,11 +35,17 @@ if ($LASTEXITCODE -ne 0 -or $rustVersion -notmatch '^rustc 1\.88\.0 ') {
   throw "Production mode requires rustc 1.88.0; found '$rustVersion'."
 }
 
+$buildCommit = (& git -C $repositoryRoot rev-parse --short=12 HEAD).Trim()
+$buildBranch = (& git -C $repositoryRoot branch --show-current).Trim()
+if (-not $buildBranch) { $buildBranch = "detached" }
+
 & cmake -S $repositoryRoot -B $resolvedBuild -G "Visual Studio 17 2022" -A x64 `
   "-DCMAKE_SYSTEM_VERSION=$windowsSdk" `
   "-DPALCENTER_BUILD_TESTS=OFF" `
   "-DPALCENTER_UE4SS_BUILD_MODE=PRODUCTION" `
-  "-DPALCENTER_UE4SS_ROOT=$resolvedUe4ss"
+  "-DPALCENTER_UE4SS_ROOT=$resolvedUe4ss" `
+  "-DPALCENTER_BUILD_COMMIT=$buildCommit" `
+  "-DPALCENTER_BUILD_BRANCH=$buildBranch"
 if ($LASTEXITCODE -ne 0) { throw "Production CMake configuration failed." }
 
 & cmake --build $resolvedBuild --config $productionConfiguration --target PalCenterCompanion

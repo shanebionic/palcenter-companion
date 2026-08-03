@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <memory>
 #include <mutex>
+#include <string>
 
 namespace palcenter::companion {
 
@@ -27,5 +28,7 @@ class CompanionApplication final {
   mutable std::mutex lifecycle_mutex_;
   bool initialization_attempted_{false};
 };
+
+std::string load_or_create_instance_id(const std::filesystem::path& config_path);
 
 }  // namespace palcenter::companion

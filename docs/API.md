@@ -24,7 +24,14 @@ Example response:
   "applicationVersion": "0.1.0",
   "apiVersion": "v1",
   "startedAt": "2026-08-02T20:00:00Z",
-  "uptimeSeconds": 12
+  "uptimeSeconds": 12,
+  "instanceId": "61fc7f4e-7d48-4ab7-a272-88a4322ccae7",
+  "checks": {
+    "configuration": "healthy",
+    "httpListener": "healthy",
+    "ue4ssIntegration": "healthy",
+    "eventEngine": "not_available"
+  }
 }
 ```
 
@@ -38,11 +45,22 @@ Example response:
 {
   "application": "palcenter-companion",
   "applicationVersion": "0.1.0",
-  "apiVersion": "v1"
+  "apiVersion": "v1",
+  "buildCommit": "abc1234",
+  "buildBranch": "main",
+  "buildDate": "2026-08-03T00:00:00Z",
+  "compiler": "C++20",
+  "palworldVersion": null,
+  "ue4ssVersion": null,
+  "compatibility": {
+    "minimumPalCenter": "1.4.0",
+    "testedPalCenter": "1.4.0",
+    "testedPalworld": "v1.0.2.101103"
+  }
 }
 ```
 
-Consumers must negotiate compatibility using `apiVersion`; the application version is operational metadata and does not replace API versioning.
+Unavailable runtime versions are returned as `null`, not guessed. Compatibility metadata is informational; capabilities determine feature availability.
 
 ## `GET /palcenter/v1/capabilities`
 
@@ -50,11 +68,11 @@ Reports which optional authoritative features this Companion instance can curren
 
 ```json
 {
-  "events": false,
-  "guilds": false,
-  "bases": false,
-  "performance": false,
-  "moderation": false
+  "schemaVersion": "1",
+  "categories": {
+    "events": { "supported": false, "capabilityVersion": "1" },
+    "health": { "supported": true, "capabilityVersion": "1" }
+  }
 }
 ```
 

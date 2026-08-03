@@ -213,24 +213,42 @@ void test_http_endpoints_and_shutdown() {
          "Health response should include the start time");
   expect(health->body.find("\"uptimeSeconds\":") != std::string::npos,
          "Health response should include uptime");
+  expect(health->body.find("\"instanceId\":\"ephemeral\"") != std::string::npos,
+         "Health response should include the instance ID");
+  expect(health->body.find("\"checks\":") != std::string::npos,
+         "Health response should include subsystem checks");
 
   const auto version = client.Get("/palcenter/v1/version");
   expect(version && version->status == 200, "Version endpoint should respond");
-  expect(version->body ==
-             "{\"application\":\"palcenter-companion\",\"applicationVersion\":\"0.1.0\","
-             "\"apiVersion\":\"v1\"}",
-         "Version response should match the v1 contract");
+  expect(version->body.find("\"applicationVersion\":\"0.1.0\"") != std::string::npos,
+         "Version response should include the application version");
+  expect(version->body.find("\"compatibility\":") != std::string::npos,
+         "Version response should include informational compatibility");
 
   const auto capabilities = client.Get("/palcenter/v1/capabilities");
   expect(capabilities && capabilities->status == 200, "Capabilities endpoint should respond");
-  expect(capabilities->body ==
-             "{\"events\":false,\"guilds\":false,\"bases\":false,"
-             "\"performance\":false,\"moderation\":false}",
-         "Foundation capabilities should all be false");
+  expect(capabilities->body.find("\"categories\":") != std::string::npos,
+         "Capabilities should use grouped categories");
+  expect(capabilities->body.find("\"health\":{\"supported\":true") != std::string::npos,
+         "Health capability should be advertised");
 
   server.stop();
   expect(!server.is_running(), "HTTP server should stop cleanly");
   expect(server.bound_port() == 0, "Stopped server should release its port");
+}
+
+void test_instance_id_persists() {
+  const auto directory = std::filesystem::temp_directory_path() /
+                         ("palcenter-instance-test-" + std::to_string(
+                              std::chrono::steady_clock::now().time_since_epoch().count()));
+  std::filesystem::create_directories(directory);
+  const auto config = directory / "PalCenterCompanion.ini";
+  std::ofstream(config) << "[Companion]\n";
+  const auto first = palcenter::companion::load_or_create_instance_id(config);
+  const auto second = palcenter::companion::load_or_create_instance_id(config);
+  expect(first.size() == 36, "Instance ID should be UUID-shaped");
+  expect(first == second, "Instance ID should persist across restarts");
+  std::filesystem::remove_all(directory);
 }
 
 void test_application_configuration_and_logging() {
@@ -352,6 +370,7 @@ int main() {
   try {
     test_configuration();
     test_http_endpoints_and_shutdown();
+    test_instance_id_persists();
     test_application_configuration_and_logging();
     test_port_binding_failure_is_contained();
     test_disabled_configuration();

@@ -4,27 +4,31 @@ Capability negotiation lets a consumer enable enhanced features without assuming
 
 ## Initial model
 
-`GET /palcenter/v1/capabilities` returns explicit booleans:
+`GET /palcenter/v1/capabilities` returns grouped, versioned capability metadata:
 
 ```json
 {
-  "events": false,
-  "guilds": false,
-  "bases": false,
-  "performance": false,
-  "moderation": false
+  "schemaVersion": "1",
+  "categories": {
+    "events": { "supported": false, "capabilityVersion": "1" },
+    "health": { "supported": true, "capabilityVersion": "1" }
+  }
 }
 ```
 
-All capabilities are `false` in the foundation example because none are implemented.
+Only the `health` and `version` discovery capabilities are supported in this milestone.
 
 | Capability | Future meaning |
 | --- | --- |
 | `events` | Authoritative event query or streaming interfaces are available. |
+| `coordinateSpaces` | Authoritative coordinate-space identification is available. |
 | `guilds` | Authoritative guild information is available. |
 | `bases` | Authoritative base information is available. |
 | `performance` | Companion-sourced server performance data is available. |
 | `moderation` | Companion moderation operations are available. |
+| `administration` | Companion administration operations are available. |
+| `health` | Structured health information is available. |
+| `version` | Build and compatibility information is available. |
 
 ## Consumer behavior
 
@@ -32,10 +36,10 @@ All capabilities are `false` in the foundation example because none are implemen
 2. Probe the Companion health and version endpoints.
 3. Reject unsupported API versions without affecting normal operation.
 4. Read capabilities.
-5. Enable only features whose capability is explicitly `true`.
+5. Enable only features whose `supported` value is explicitly `true`.
 6. Prefer authoritative Companion data for that capability.
 7. Return to the official REST API or inference path if the Companion becomes unavailable.
 
-Consumers must treat missing, malformed, unknown, or non-boolean capability values as unsupported. Unknown capability names must be ignored for forward compatibility.
+Capability identifiers are permanent: they are never renamed or removed, and new identifiers are added only. Consumers must treat missing or malformed entries as unsupported and ignore unknown categories and metadata for forward compatibility.
 
-Capabilities describe currently usable interfaces, not roadmap promises. Future versions may evolve boolean values into separately named, richer negotiated features without changing the meaning of these v1 fields.
+Capabilities describe currently usable interfaces, not roadmap promises. Capability negotiation takes precedence over informational application-version compatibility.

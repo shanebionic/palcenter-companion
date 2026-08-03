@@ -4,6 +4,11 @@
 #include "palcenter_companion/version.hpp"
 
 #include <exception>
+#include <fstream>
+#include <iomanip>
+#include <random>
+#include <sstream>
+#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -15,6 +20,42 @@ int severity(const LogLevel level) {
 }
 
 }  // namespace
+
+std::string load_or_create_instance_id(const std::filesystem::path& config_path) {
+  const auto path = config_path.parent_path() / "PalCenterCompanion.instance-id";
+  if (std::ifstream input(path); input) {
+    std::string value;
+    std::getline(input, value);
+    if (value.size() == 36) {
+      return value;
+    }
+  }
+
+  std::random_device source;
+  std::uniform_int_distribution<unsigned int> byte(0, 255);
+  unsigned char value[16];
+  for (auto& item : value) {
+    item = static_cast<unsigned char>(byte(source));
+  }
+  value[6] = static_cast<unsigned char>((value[6] & 0x0f) | 0x40);
+  value[8] = static_cast<unsigned char>((value[8] & 0x3f) | 0x80);
+
+  std::ostringstream id;
+  id << std::hex << std::setfill('0');
+  for (int index = 0; index < 16; ++index) {
+    if (index == 4 || index == 6 || index == 8 || index == 10) {
+      id << '-';
+    }
+    id << std::setw(2) << static_cast<unsigned int>(value[index]);
+  }
+
+  std::ofstream output(path, std::ios::trunc);
+  if (!output) {
+    throw std::runtime_error("Unable to persist Companion instance ID");
+  }
+  output << id.str() << '\n';
+  return id.str();
+}
 
 CompanionApplication::CompanionApplication(LogSink log_sink) : log_sink_(std::move(log_sink)) {}
 
@@ -50,7 +91,8 @@ bool CompanionApplication::initialize(const std::filesystem::path& config_path) 
           "Companion is bound beyond loopback; restrict access with the host firewall");
     }
 
-    http_server_ = std::make_unique<CompanionHttpServer>(config, filtered_log_sink);
+    http_server_ = std::make_unique<CompanionHttpServer>(
+        config, filtered_log_sink, load_or_create_instance_id(config_path));
     if (!http_server_->start()) {
       http_server_.reset();
       return false;

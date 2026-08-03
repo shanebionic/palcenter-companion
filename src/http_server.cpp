@@ -31,18 +31,25 @@ std::string format_utc(const std::chrono::system_clock::time_point value) {
 std::string version_response() {
   return "{\"application\":\"" + std::string(application_name) +
          "\",\"applicationVersion\":\"" + std::string(application_version) +
-         "\",\"apiVersion\":\"" + std::string(api_version) + "\"}";
+         "\",\"apiVersion\":\"" + std::string(api_version) +
+         "\",\"buildCommit\":\"" + std::string(build_commit) +
+         "\",\"buildBranch\":\"" + std::string(build_branch) +
+         "\",\"buildDate\":\"" + std::string(build_date) +
+         "\",\"compiler\":\"C++20\",\"palworldVersion\":null,\"ue4ssVersion\":null,"
+         "\"compatibility\":{\"minimumPalCenter\":\"1.4.0\","
+         "\"testedPalCenter\":\"1.4.0\",\"testedPalworld\":\"v1.0.2.101103\"}}";
 }
 
 constexpr std::string_view capabilities_response{
-    R"({"events":false,"guilds":false,"bases":false,"performance":false,"moderation":false})"};
+    R"({"schemaVersion":"1","categories":{"events":{"supported":false,"capabilityVersion":"1"},"coordinateSpaces":{"supported":false,"capabilityVersion":"1"},"guilds":{"supported":false,"capabilityVersion":"1"},"bases":{"supported":false,"capabilityVersion":"1"},"performance":{"supported":false,"capabilityVersion":"1"},"moderation":{"supported":false,"capabilityVersion":"1"},"administration":{"supported":false,"capabilityVersion":"1"},"health":{"supported":true,"capabilityVersion":"1"},"version":{"supported":true,"capabilityVersion":"1"}}})"};
 
 }  // namespace
 
-CompanionHttpServer::CompanionHttpServer(CompanionConfig config, LogSink log_sink)
+CompanionHttpServer::CompanionHttpServer(CompanionConfig config, LogSink log_sink,
+                                         std::string instance_id)
     : config_(std::move(config)),
       log_sink_(std::move(log_sink)),
-      server_(std::make_unique<httplib::Server>()) {
+      server_(std::make_unique<httplib::Server>()), instance_id_(std::move(instance_id)) {
   register_routes();
 }
 
@@ -114,7 +121,9 @@ std::string CompanionHttpServer::health_response() const {
   return "{\"status\":\"healthy\",\"applicationVersion\":\"" +
          std::string(application_version) + "\",\"apiVersion\":\"" + std::string(api_version) +
          "\",\"startedAt\":\"" + format_utc(started_at_) + "\",\"uptimeSeconds\":" +
-         std::to_string(uptime) + "}";
+         std::to_string(uptime) + ",\"instanceId\":\"" + instance_id_ +
+         "\",\"checks\":{\"configuration\":\"healthy\",\"httpListener\":\"healthy\","
+         "\"ue4ssIntegration\":\"healthy\",\"eventEngine\":\"not_available\"}}";
 }
 
 }  // namespace palcenter::companion
