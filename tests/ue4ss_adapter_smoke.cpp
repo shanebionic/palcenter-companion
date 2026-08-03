@@ -1,3 +1,6 @@
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+
 #include <DynamicOutput/Output.hpp>
 #include <Mod/CppUserModBase.hpp>
 #include <Windows.h>

@@ -77,6 +77,7 @@ if(PALCENTER_BUILD_UE4SS_EXTENSION)
     add_executable(palcenter_ue4ss_adapter_smoke tests/ue4ss_adapter_smoke.cpp)
     target_include_directories(palcenter_ue4ss_adapter_smoke PRIVATE tests/ue4ss_stubs)
     target_link_libraries(palcenter_ue4ss_adapter_smoke PRIVATE httplib::httplib)
+    target_compile_definitions(palcenter_ue4ss_adapter_smoke PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
     add_dependencies(palcenter_ue4ss_adapter_smoke PalCenterCompanion)
   endif()
 
