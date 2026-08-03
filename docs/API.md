@@ -20,24 +20,15 @@ Example response:
 
 ```json
 {
-  "status": "healthy",
-  "applicationVersion": "0.1.0",
-  "apiVersion": "v1",
-  "startedAt": "2026-08-02T20:00:00Z",
-  "uptimeSeconds": 12,
-  "instanceId": "61fc7f4e-7d48-4ab7-a272-88a4322ccae7",
-  "checks": {
-    "configuration": "healthy",
-    "httpListener": "healthy",
-    "ue4ssIntegration": "healthy",
-    "eventEngine": "not_available"
-  }
+  "status": "healthy"
 }
 ```
 
 ## `GET /palcenter/v1/version`
 
 Reports application and API compatibility information.
+
+Requires `Authorization: Bearer <token>`.
 
 Example response:
 
@@ -56,6 +47,12 @@ Example response:
     "minimumPalCenter": "1.4.0",
     "testedPalCenter": "1.4.0",
     "testedPalworld": "v1.0.2.101103"
+  },
+  "runtime": {
+    "startedAt": "2026-08-02T20:00:00Z",
+    "uptimeSeconds": 12,
+    "instanceId": "61fc7f4e-7d48-4ab7-a272-88a4322ccae7",
+    "checks": { "configuration": "healthy" }
   }
 }
 ```
@@ -65,6 +62,8 @@ Unavailable runtime versions are returned as `null`, not guessed. Compatibility 
 ## `GET /palcenter/v1/capabilities`
 
 Reports which optional authoritative features this Companion instance can currently provide. A reachable Companion does not imply that every feature is installed, supported, or active.
+
+Requires `Authorization: Bearer <token>`.
 
 ```json
 {
@@ -86,4 +85,4 @@ See [capability negotiation](CAPABILITIES.md) for consumer behavior.
 - Removing a field or changing its type requires a new API version.
 - An unavailable endpoint, unsupported API version, timeout, or invalid response causes PalCenter to fall back safely rather than impair standard server management.
 
-The discovery listener is unauthenticated in v0.1.0 and binds to `127.0.0.1:8213` by default. Administrators who select a non-loopback address must restrict access with their host firewall. Authentication, rate limits, and error-envelope details must be specified before gameplay or administrative capabilities are enabled.
+The listener binds to `127.0.0.1:8213` by default. Only the minimal health probe is unauthenticated. Version, capabilities, and every future gameplay or administrative endpoint require bearer authentication by default. Missing, malformed, oversized, and invalid credentials receive the same `401` response; `403` is reserved for a future authenticated identity that lacks permission. Administrators who select a non-loopback address must restrict access with their host firewall.

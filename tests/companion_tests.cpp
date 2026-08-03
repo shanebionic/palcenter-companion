@@ -1,4 +1,5 @@
 #include "palcenter_companion/application.hpp"
+#include "palcenter_companion/authentication.hpp"
 #include "palcenter_companion/config.hpp"
 #include "palcenter_companion/http_server.hpp"
 
@@ -203,29 +204,32 @@ void test_http_endpoints_and_shutdown() {
   std::this_thread::sleep_for(std::chrono::milliseconds(25));
   const auto health = client.Get("/palcenter/v1/health");
   expect(health && health->status == 200, "Health endpoint should respond");
-  expect(health->body.find("\"status\":\"healthy\"") != std::string::npos,
-         "Health response should report healthy");
-  expect(health->body.find("\"applicationVersion\":\"0.1.0\"") != std::string::npos,
-         "Health response should include the application version");
-  expect(health->body.find("\"apiVersion\":\"v1\"") != std::string::npos,
-         "Health response should include the API version");
-  expect(health->body.find("\"startedAt\":") != std::string::npos,
-         "Health response should include the start time");
-  expect(health->body.find("\"uptimeSeconds\":") != std::string::npos,
-         "Health response should include uptime");
-  expect(health->body.find("\"instanceId\":\"ephemeral\"") != std::string::npos,
-         "Health response should include the instance ID");
-  expect(health->body.find("\"checks\":") != std::string::npos,
-         "Health response should include subsystem checks");
+  expect(health->body == "{\"status\":\"healthy\"}",
+         "Unauthenticated health must expose only status");
 
-  const auto version = client.Get("/palcenter/v1/version");
+  const auto missing_auth = client.Get("/palcenter/v1/version");
+  expect(missing_auth && missing_auth->status == 401, "Version should require authentication");
+  httplib::Headers headers{{"Authorization", "Bearer test-token"}};
+  const auto version = client.Get("/palcenter/v1/version", headers);
   expect(version && version->status == 200, "Version endpoint should respond");
   expect(version->body.find("\"applicationVersion\":\"0.1.0\"") != std::string::npos,
          "Version response should include the application version");
   expect(version->body.find("\"compatibility\":") != std::string::npos,
          "Version response should include informational compatibility");
+  expect(version->body.find("\"runtime\":") != std::string::npos,
+         "Authenticated version should include runtime diagnostics");
 
-  const auto capabilities = client.Get("/palcenter/v1/capabilities");
+  const httplib::Headers invalid_headers{{"Authorization", "Bearer wrong-token"}};
+  const auto invalid = client.Get("/palcenter/v1/capabilities", invalid_headers);
+  expect(invalid && invalid->status == 401, "Invalid token should be rejected");
+  const httplib::Headers malformed_headers{{"Authorization", "Basic test-token"}};
+  const auto malformed = client.Get("/palcenter/v1/capabilities", malformed_headers);
+  expect(malformed && malformed->status == 401, "Malformed scheme should be rejected");
+  const httplib::Headers oversized_headers{
+      {"Authorization", "Bearer " + std::string(129, 'x')}};
+  const auto oversized = client.Get("/palcenter/v1/capabilities", oversized_headers);
+  expect(oversized && oversized->status == 401, "Oversized token should be rejected");
+  const auto capabilities = client.Get("/palcenter/v1/capabilities", headers);
   expect(capabilities && capabilities->status == 200, "Capabilities endpoint should respond");
   expect(capabilities->body.find("\"categories\":") != std::string::npos,
          "Capabilities should use grouped categories");
@@ -248,6 +252,24 @@ void test_instance_id_persists() {
   const auto second = palcenter::companion::load_or_create_instance_id(config);
   expect(first.size() == 36, "Instance ID should be UUID-shaped");
   expect(first == second, "Instance ID should persist across restarts");
+  std::filesystem::remove_all(directory);
+}
+
+void test_api_token_generation_and_persistence() {
+  const auto directory = std::filesystem::temp_directory_path() /
+                         ("palcenter-token-test-" + std::to_string(
+                              std::chrono::steady_clock::now().time_since_epoch().count()));
+  std::filesystem::create_directories(directory);
+  const auto config = directory / "PalCenterCompanion.ini";
+  std::ofstream(config) << "[Companion]\n";
+  const auto first = palcenter::companion::load_or_create_api_token(config);
+  const auto second = palcenter::companion::load_or_create_api_token(config);
+  expect(first.size() == 64, "Generated token should contain 256 bits encoded as hex");
+  expect(first == second, "Generated token should persist across restarts");
+  expect(palcenter::companion::constant_time_token_equal(first, second),
+         "Constant-time comparison should accept equal tokens");
+  expect(!palcenter::companion::constant_time_token_equal(first, std::string(64, '0')),
+         "Constant-time comparison should reject unequal tokens");
   std::filesystem::remove_all(directory);
 }
 
@@ -371,6 +393,7 @@ int main() {
     test_configuration();
     test_http_endpoints_and_shutdown();
     test_instance_id_persists();
+    test_api_token_generation_and_persistence();
     test_application_configuration_and_logging();
     test_port_binding_failure_is_contained();
     test_disabled_configuration();

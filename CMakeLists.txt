@@ -40,11 +40,15 @@ add_library(
   palcenter_companion_core
   STATIC
   src/application.cpp
+  src/authentication.cpp
   src/config.cpp
   src/http_server.cpp
 )
 target_include_directories(palcenter_companion_core PUBLIC include)
 target_link_libraries(palcenter_companion_core PUBLIC httplib::httplib)
+if(WIN32)
+  target_link_libraries(palcenter_companion_core PUBLIC bcrypt)
+endif()
 target_compile_definitions(
   palcenter_companion_core
   PUBLIC
@@ -53,6 +57,9 @@ target_compile_definitions(
     PALCENTER_BUILD_COMMIT="${PALCENTER_BUILD_COMMIT}"
     PALCENTER_BUILD_BRANCH="${PALCENTER_BUILD_BRANCH}"
     PALCENTER_BUILD_DATE="${PALCENTER_BUILD_DATE}"
+  PRIVATE
+    CPPHTTPLIB_REQUEST_URI_MAX_LENGTH=2048
+    CPPHTTPLIB_HEADER_MAX_LENGTH=8192
 )
 set_target_properties(palcenter_companion_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 

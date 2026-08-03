@@ -1,6 +1,7 @@
 #include "palcenter_companion/application.hpp"
 
 #include "palcenter_companion/config.hpp"
+#include "palcenter_companion/authentication.hpp"
 #include "palcenter_companion/version.hpp"
 
 #include <exception>
@@ -92,7 +93,8 @@ bool CompanionApplication::initialize(const std::filesystem::path& config_path) 
     }
 
     http_server_ = std::make_unique<CompanionHttpServer>(
-        config, filtered_log_sink, load_or_create_instance_id(config_path));
+        config, filtered_log_sink, load_or_create_instance_id(config_path),
+        load_or_create_api_token(config_path));
     if (!http_server_->start()) {
       http_server_.reset();
       return false;

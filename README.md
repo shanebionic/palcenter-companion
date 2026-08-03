@@ -54,6 +54,10 @@ Public CI produces `PalCenterCompanion-contract-test.dll`. It validates PalCente
 
 ## Installation summary
 
+On first startup the Companion creates `config/PalCenterCompanion.token` with a random 256-bit API token. Stop PalServer before reading or replacing this file, then paste the token into that server's **Advanced Companion Connection** settings in PalCenter. The token is not returned by the API or written to normal logs.
+
+Keep the default `127.0.0.1:8213` listener when both clients share the host. For Docker, Unraid, or remote PalCenter deployments, explicitly bind a private interface and configure the matching host and port in PalCenter. Bearer tokens do not encrypt traffic; use private networking, firewall rules, or a TLS reverse proxy and never expose the listener directly to the public Internet.
+
 PalCenter Companion is built as a UE4SS C++ extension DLL. A release package is copied to the existing Palworld server's UE4SS extensions directory and loads automatically when PalServer starts. It is not a standalone executable, service, container, or second application.
 
 ```text
