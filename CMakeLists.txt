@@ -69,6 +69,15 @@ if(PALCENTER_BUILD_UE4SS_EXTENSION)
   set_target_properties(PalCenterCompanion PROPERTIES PREFIX "")
   if(PALCENTER_USE_UE4SS_TEST_STUBS)
     set_target_properties(PalCenterCompanion PROPERTIES OUTPUT_NAME "PalCenterCompanion-contract-test")
+    configure_file(
+      tests/fixtures/PalCenterCompanion.ini
+      "${CMAKE_BINARY_DIR}/config/PalCenterCompanion.ini"
+      COPYONLY
+    )
+    add_executable(palcenter_ue4ss_adapter_smoke tests/ue4ss_adapter_smoke.cpp)
+    target_include_directories(palcenter_ue4ss_adapter_smoke PRIVATE tests/ue4ss_stubs)
+    target_link_libraries(palcenter_ue4ss_adapter_smoke PRIVATE httplib::httplib)
+    add_dependencies(palcenter_ue4ss_adapter_smoke PalCenterCompanion)
   endif()
 
   install(TARGETS PalCenterCompanion RUNTIME DESTINATION PalCenterCompanion/dlls)
@@ -81,4 +90,11 @@ if(PALCENTER_BUILD_TESTS)
   add_executable(palcenter_companion_tests tests/companion_tests.cpp)
   target_link_libraries(palcenter_companion_tests PRIVATE palcenter_companion_core)
   add_test(NAME palcenter_companion_tests COMMAND palcenter_companion_tests)
+  if(TARGET palcenter_ue4ss_adapter_smoke)
+    add_test(NAME palcenter_ue4ss_adapter_smoke COMMAND palcenter_ue4ss_adapter_smoke)
+    set_tests_properties(
+      palcenter_ue4ss_adapter_smoke
+      PROPERTIES WORKING_DIRECTORY "$<TARGET_FILE_DIR:palcenter_ue4ss_adapter_smoke>"
+    )
+  endif()
 endif()

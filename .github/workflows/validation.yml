@@ -77,11 +77,13 @@ jobs:
       - name: Configure Windows extension against the test lifecycle contract
         run: >-
           cmake -S . -B build-extension -G "Visual Studio 17 2022"
-          -DPALCENTER_BUILD_TESTS=OFF
+          -DPALCENTER_BUILD_TESTS=ON
           -DPALCENTER_BUILD_UE4SS_EXTENSION=ON
           -DPALCENTER_USE_UE4SS_TEST_STUBS=ON
       - name: Build UE4SS extension
-        run: cmake --build build-extension --config Release --target PalCenterCompanion
+        run: cmake --build build-extension --config Release
+      - name: Exercise load, initialize, endpoints, and unload lifecycle
+        run: ctest --test-dir build-extension -C Release --output-on-failure
       - name: Verify UE4SS lifecycle exports
         shell: pwsh
         run: |
