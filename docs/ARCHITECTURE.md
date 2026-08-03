@@ -29,6 +29,12 @@ PalCenter discovery
 
 The UE4SS adapter, application, configuration loader, and HTTP listener are implemented in v0.1.0. The listener runs on a dedicated worker thread inside the PalServer process and is stopped and joined before the extension unloads.
 
+### Threading and shutdown
+
+`on_unreal_init` performs bounded configuration and socket binding, then starts the blocking HTTP request loop on one dedicated worker thread. Duplicate initialization callbacks are ignored for that Companion instance. Application initialization, shutdown, and status access are serialized by a lifecycle mutex; listener state and its bound port are atomic.
+
+Routes are registered before the worker starts and use only listener-owned immutable API metadata plus atomic/lifecycle timestamps. Shutdown first requests the HTTP server to stop, then joins the listener thread before destroying either the server or handler state. This ordering prevents handlers from observing a destroyed plugin instance. A bind failure creates no worker and leaves PalServer running without the Companion listener.
+
 ## Future internal layers
 
 ```text

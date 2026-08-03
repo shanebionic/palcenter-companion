@@ -13,6 +13,7 @@ The roadmap describes intended direction, not committed dates. Each capability m
 
 ## v0.2 — Compatibility and packaging
 
+- API authentication before any authoritative gameplay or player endpoint
 - Published Palworld and UE4SS compatibility matrix
 - Reproducible extension package
 - Administrator installation and upgrade validation

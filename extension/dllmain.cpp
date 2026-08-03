@@ -68,11 +68,11 @@ class PalCenterCompanionMod final : public RC::CppUserModBase {
 
   auto on_unreal_init() -> void override {
     try {
-      application_ = std::make_unique<CompanionApplication>(log_to_ue4ss);
-      const auto config_path = companion_directory() / "config" / "PalCenterCompanion.ini";
-      if (!application_->initialize(config_path)) {
-        application_.reset();
+      if (!application_) {
+        application_ = std::make_unique<CompanionApplication>(log_to_ue4ss);
       }
+      const auto config_path = companion_directory() / "config" / "PalCenterCompanion.ini";
+      static_cast<void>(application_->initialize(config_path));
     } catch (const std::exception& error) {
       log_to_ue4ss(LogLevel::error,
                    "Companion initialization failed; the Palworld server will continue: " +

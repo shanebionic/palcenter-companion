@@ -11,6 +11,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <thread>
 
 namespace {
@@ -25,6 +26,20 @@ Function exported_function(const HMODULE module, const char* name) {
     throw std::runtime_error(std::string("Missing export: ") + name);
   }
   return reinterpret_cast<Function>(address);
+}
+
+std::string started_at_value(const std::string& body) {
+  constexpr std::string_view prefix{"\"startedAt\":\""};
+  const auto begin = body.find(prefix);
+  if (begin == std::string::npos) {
+    throw std::runtime_error("health response is missing startedAt");
+  }
+  const auto value_begin = begin + prefix.size();
+  const auto end = body.find('"', value_begin);
+  if (end == std::string::npos) {
+    throw std::runtime_error("health response has invalid startedAt");
+  }
+  return body.substr(value_begin, end - value_begin);
 }
 
 }  // namespace
@@ -54,6 +69,13 @@ int main() {
     if (!health || health->status != 200 ||
         health->body.find("\"status\":\"healthy\"") == std::string::npos) {
       throw std::runtime_error("embedded health endpoint did not become healthy");
+    }
+
+    companion->on_unreal_init();
+    const auto health_after_duplicate = client.Get("/palcenter/v1/health");
+    if (!health_after_duplicate || health_after_duplicate->status != 200 ||
+        started_at_value(health_after_duplicate->body) != started_at_value(health->body)) {
+      throw std::runtime_error("duplicate on_unreal_init replaced or interrupted the listener");
     }
 
     uninstall_mod(companion);

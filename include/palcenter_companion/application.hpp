@@ -4,6 +4,7 @@
 
 #include <filesystem>
 #include <memory>
+#include <mutex>
 
 namespace palcenter::companion {
 
@@ -23,6 +24,8 @@ class CompanionApplication final {
   LogSink log_sink_;
   LogSink runtime_log_sink_;
   std::unique_ptr<CompanionHttpServer> http_server_;
+  mutable std::mutex lifecycle_mutex_;
+  bool initialization_attempted_{false};
 };
 
 }  // namespace palcenter::companion

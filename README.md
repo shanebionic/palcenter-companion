@@ -46,6 +46,12 @@ Application version `0.1.0` provides:
 
 See the [installation guide](docs/INSTALLATION.md), [framework evaluation](docs/research/FRAMEWORK-EVALUATION.md), [API overview](docs/API.md), and [OpenAPI contract](api/openapi.yaml).
 
+## Compatibility and build status
+
+The production release candidate is pinned to Palworld Dedicated Server Steam build `24181105` and Okaetsu RE-UE4SS commit `c838a8acaade1a0f860bdf249f039e58f4e10088`. Live PalServer certification is still pending, so PR #2 remains a draft and no production DLL should be distributed yet.
+
+Public CI produces `PalCenterCompanion-contract-test.dll`. It validates PalCenter-owned lifecycle, endpoint, and shutdown behavior but is not a distributable UE4SS DLL. Authorized contributors can build and package the real `main.dll` using the exact process in [Production Toolchain](docs/TOOLCHAIN.md), then complete [Live PalServer UAT](docs/LIVE-PALSERVER-UAT.md).
+
 ## Installation summary
 
 PalCenter Companion is built as a UE4SS C++ extension DLL. A release package is copied to the existing Palworld server's UE4SS extensions directory and loads automatically when PalServer starts. It is not a standalone executable, service, container, or second application.
@@ -74,6 +80,8 @@ PalCenter's intelligence engine should prefer authoritative Companion events ove
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Installation and startup](docs/INSTALLATION.md)
+- [Production toolchain](docs/TOOLCHAIN.md)
+- [Live PalServer UAT](docs/LIVE-PALSERVER-UAT.md)
 - [Framework evaluation](docs/research/FRAMEWORK-EVALUATION.md)
 - [API design](docs/API.md)
 - [Capability negotiation](docs/CAPABILITIES.md)

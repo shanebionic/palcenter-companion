@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-PalCenter Companion is currently an architecture-only pre-release project. No deployable runtime is available and no version is supported for production use yet. Security support policy will be defined before the first executable release.
+PalCenter Companion is currently a pre-release project. Its discovery-only runtime is implemented, but no version is supported for production use until the pinned production DLL passes live PalServer validation. Security support policy will be defined before the first certified release.
 
 ## Reporting a vulnerability
 
@@ -23,3 +23,5 @@ Future implementation work must preserve these baseline expectations:
 - explicit capability negotiation;
 - safe handling of administrator credentials and event data;
 - conservative behavior when identity or evidence is uncertain.
+
+The v0.1 discovery API has no authentication or TLS. It exposes health, version, and disabled capabilities only and must remain on loopback or a tightly controlled private test network. Gameplay or player data must not be introduced until API authentication is implemented.

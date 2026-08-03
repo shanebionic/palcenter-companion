@@ -5,13 +5,19 @@ project(PalCenterCompanion VERSION 0.1.0 LANGUAGES CXX)
 include(FetchContent)
 
 option(PALCENTER_BUILD_TESTS "Build the platform-neutral Companion tests" ON)
-option(PALCENTER_BUILD_UE4SS_EXTENSION "Build the UE4SS C++ extension DLL" OFF)
-option(PALCENTER_USE_UE4SS_TEST_STUBS "Use test-only UE4SS lifecycle declarations" OFF)
+set(PALCENTER_UE4SS_BUILD_MODE "OFF" CACHE STRING "UE4SS DLL mode: OFF, CONTRACT, or PRODUCTION")
+set_property(CACHE PALCENTER_UE4SS_BUILD_MODE PROPERTY STRINGS OFF CONTRACT PRODUCTION)
 set(PALCENTER_UE4SS_ROOT "" CACHE PATH "Path to a compatible RE-UE4SS source checkout")
+
+set(PALCENTER_PINNED_UE4SS_COMMIT "c838a8acaade1a0f860bdf249f039e58f4e10088")
+set(PALCENTER_PINNED_WINDOWS_SDK "10.0.26100.0")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+if(MSVC)
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+endif()
 
 # Pinned for reproducible builds. The HTTP library is embedded in the Companion;
 # it does not create a separate process or service.
@@ -49,16 +55,54 @@ else()
   target_compile_options(palcenter_companion_core PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endif()
 
-if(PALCENTER_BUILD_UE4SS_EXTENSION)
+if(NOT PALCENTER_UE4SS_BUILD_MODE STREQUAL "OFF")
   if(NOT WIN32)
     message(FATAL_ERROR "The UE4SS Companion extension is a Windows DLL. Linux hosts require Wine or Proton.")
   endif()
-  if(PALCENTER_USE_UE4SS_TEST_STUBS)
+  if(NOT PALCENTER_UE4SS_BUILD_MODE MATCHES "^(CONTRACT|PRODUCTION)$")
+    message(FATAL_ERROR "PALCENTER_UE4SS_BUILD_MODE must be OFF, CONTRACT, or PRODUCTION.")
+  endif()
+
+  if(PALCENTER_UE4SS_BUILD_MODE STREQUAL "CONTRACT")
     add_library(UE4SS INTERFACE)
     target_include_directories(UE4SS INTERFACE tests/ue4ss_stubs)
   else()
     if(NOT EXISTS "${PALCENTER_UE4SS_ROOT}/CMakeLists.txt")
-      message(FATAL_ERROR "Set PALCENTER_UE4SS_ROOT to an authorized compatible RE-UE4SS source checkout.")
+      message(FATAL_ERROR
+        "Production mode requires -DPALCENTER_UE4SS_ROOT=<authorized RE-UE4SS checkout>. "
+        "The path must contain CMakeLists.txt and initialized access-controlled submodules."
+      )
+    endif()
+    if(NOT EXISTS "${PALCENTER_UE4SS_ROOT}/deps/first/Unreal/CMakeLists.txt")
+      message(FATAL_ERROR
+        "The authorized UEPseudo dependency is missing. Initialize the pinned RE-UE4SS submodules "
+        "with your Epic-linked GitHub credentials; do not copy it into this repository."
+      )
+    endif()
+    execute_process(
+      COMMAND git -C "${PALCENTER_UE4SS_ROOT}" rev-parse HEAD
+      OUTPUT_VARIABLE PALCENTER_UE4SS_ACTUAL_COMMIT
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      RESULT_VARIABLE PALCENTER_UE4SS_GIT_RESULT
+    )
+    if(NOT PALCENTER_UE4SS_GIT_RESULT EQUAL 0 OR
+       NOT PALCENTER_UE4SS_ACTUAL_COMMIT STREQUAL PALCENTER_PINNED_UE4SS_COMMIT)
+      message(FATAL_ERROR
+        "Unsupported RE-UE4SS checkout. Expected ${PALCENTER_PINNED_UE4SS_COMMIT}, "
+        "found '${PALCENTER_UE4SS_ACTUAL_COMMIT}'."
+      )
+    endif()
+    if(NOT CMAKE_GENERATOR STREQUAL "Visual Studio 17 2022" OR NOT CMAKE_GENERATOR_PLATFORM STREQUAL "x64")
+      message(FATAL_ERROR "Production mode requires -G \"Visual Studio 17 2022\" -A x64.")
+    endif()
+    if(NOT MSVC_VERSION EQUAL 1944)
+      message(FATAL_ERROR "Production mode is pinned to the MSVC 19.44 toolset (MSVC_VERSION 1944).")
+    endif()
+    if(NOT CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION STREQUAL PALCENTER_PINNED_WINDOWS_SDK)
+      message(FATAL_ERROR
+        "Production mode requires Windows SDK ${PALCENTER_PINNED_WINDOWS_SDK}; "
+        "configure with -DCMAKE_SYSTEM_VERSION=${PALCENTER_PINNED_WINDOWS_SDK}."
+      )
     endif()
     add_subdirectory("${PALCENTER_UE4SS_ROOT}" "${CMAKE_BINARY_DIR}/ue4ss" EXCLUDE_FROM_ALL)
   endif()
@@ -67,7 +111,7 @@ if(PALCENTER_BUILD_UE4SS_EXTENSION)
   target_link_libraries(PalCenterCompanion PRIVATE palcenter_companion_core UE4SS)
   target_compile_definitions(PalCenterCompanion PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
   set_target_properties(PalCenterCompanion PROPERTIES PREFIX "")
-  if(PALCENTER_USE_UE4SS_TEST_STUBS)
+  if(PALCENTER_UE4SS_BUILD_MODE STREQUAL "CONTRACT")
     set_target_properties(PalCenterCompanion PROPERTIES OUTPUT_NAME "PalCenterCompanion-contract-test")
     configure_file(
       tests/fixtures/PalCenterCompanion.ini
@@ -79,11 +123,15 @@ if(PALCENTER_BUILD_UE4SS_EXTENSION)
     target_link_libraries(palcenter_ue4ss_adapter_smoke PRIVATE httplib::httplib)
     target_compile_definitions(palcenter_ue4ss_adapter_smoke PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
     add_dependencies(palcenter_ue4ss_adapter_smoke PalCenterCompanion)
+  else()
+    set_target_properties(PalCenterCompanion PROPERTIES OUTPUT_NAME "main")
   endif()
 
   install(TARGETS PalCenterCompanion RUNTIME DESTINATION PalCenterCompanion/dlls)
   install(FILES config/PalCenterCompanion.ini DESTINATION PalCenterCompanion/config)
   install(FILES extension/enabled.txt DESTINATION PalCenterCompanion)
+  install(FILES packaging/README.txt DESTINATION PalCenterCompanion)
+  install(FILES packaging/LICENSES/THIRD-PARTY-NOTICES.txt DESTINATION PalCenterCompanion/LICENSES)
 endif()
 
 if(PALCENTER_BUILD_TESTS)

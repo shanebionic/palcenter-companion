@@ -21,6 +21,12 @@ CompanionApplication::CompanionApplication(LogSink log_sink) : log_sink_(std::mo
 CompanionApplication::~CompanionApplication() { shutdown(); }
 
 bool CompanionApplication::initialize(const std::filesystem::path& config_path) noexcept {
+  std::scoped_lock lock(lifecycle_mutex_);
+  if (initialization_attempted_) {
+    log_sink_(LogLevel::warning, "Ignoring duplicate Companion initialization request");
+    return http_server_ != nullptr && http_server_->is_running();
+  }
+  initialization_attempted_ = true;
   try {
     const auto config = load_config(config_path);
     const LogSink filtered_log_sink = [sink = log_sink_, minimum = config.log_level](
@@ -67,6 +73,7 @@ bool CompanionApplication::initialize(const std::filesystem::path& config_path) 
 }
 
 void CompanionApplication::shutdown() noexcept {
+  std::scoped_lock lock(lifecycle_mutex_);
   if (http_server_) {
     http_server_->stop();
     http_server_.reset();
@@ -78,6 +85,7 @@ void CompanionApplication::shutdown() noexcept {
 }
 
 bool CompanionApplication::is_running() const noexcept {
+  std::scoped_lock lock(lifecycle_mutex_);
   return http_server_ != nullptr && http_server_->is_running();
 }
 

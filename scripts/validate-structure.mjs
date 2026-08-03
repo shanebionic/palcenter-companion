@@ -15,8 +15,14 @@ const requiredPaths = [
   "src/application.cpp",
   "src/http_server.cpp",
   "tests/companion_tests.cpp",
+  "scripts/build-production.ps1",
+  "scripts/package-production.ps1",
+  "packaging/README.txt",
+  "packaging/LICENSES/THIRD-PARTY-NOTICES.txt",
   "docs/ARCHITECTURE.md",
   "docs/INSTALLATION.md",
+  "docs/TOOLCHAIN.md",
+  "docs/LIVE-PALSERVER-UAT.md",
   "docs/research/FRAMEWORK-EVALUATION.md",
   "docs/API.md",
   "docs/CAPABILITIES.md",
@@ -61,7 +67,8 @@ for (const requiredText of [
 const cmakeProject = await readFile("CMakeLists.txt", "utf8");
 for (const requiredText of [
   "project(PalCenterCompanion VERSION 0.1.0",
-  "PALCENTER_BUILD_UE4SS_EXTENSION",
+  "PALCENTER_UE4SS_BUILD_MODE",
+  "OUTPUT_NAME \"main\"",
   "palcenter_companion_core",
 ]) {
   if (!cmakeProject.includes(requiredText)) {

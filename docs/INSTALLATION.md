@@ -1,45 +1,66 @@
 # Installation and Startup
 
-## Milestone status
+## Compatibility status
 
-The v0.1.0 implementation is an early development artifact. It exposes discovery information only and has not yet completed a published Palworld/UE4SS compatibility certification. It contains no gameplay hooks, player data, telemetry, or game events.
+The v0.1.0 implementation exposes discovery information only. Its production release candidate targets Palworld Dedicated Server Steam build `24181105` and Okaetsu RE-UE4SS commit `c838a8acaade1a0f860bdf249f039e58f4e10088`. Live certification against that combination is still pending; do not distribute the DLL until [Live PalServer UAT](LIVE-PALSERVER-UAT.md) passes.
 
-Public CI verifies the platform-neutral runtime and the Windows DLL lifecycle contract. Because UE4SS production builds require authorized Unreal-derived `UEPseudo` sources, a release candidate must also be compiled against the exact authorized UE4SS revision and loaded in a disposable PalServer before distribution.
+Public CI builds `PalCenterCompanion-contract-test.dll` against test declarations. That DLL is not a production artifact and must not be installed. Authorized contributors build the real `main.dll` using [Production Toolchain](TOOLCHAIN.md).
 
 ## Requirements
 
-- Palworld Dedicated Server running the Windows server binary
+- Palworld Dedicated Server using the Windows server binary
 - Windows, or Linux hosting the Windows server through Wine/Proton
-- A Palworld-compatible UE4SS build matching the Companion release compatibility notes
+- The exact Palworld-compatible UE4SS revision recorded above
+- Microsoft Visual C++ 2015–2022 x64 Redistributable because `main.dll` uses `/MD`
 
-Native Linux PalServer is not supported by UE4SS today. Do not install multiple UE4SS loaders: PalCenter Companion, PalDefender's UE4SS variant, Offline Raid Protection, and other UE4SS extensions should share one compatible loader installation.
+Native Linux PalServer is not supported by UE4SS. Do not install multiple UE4SS loaders. PalCenter Companion, PalDefender's UE4SS variant, Offline Raid Protection, and other UE4SS extensions must share one compatible loader installation.
 
-## Planned release installation
+## Build from authorized sources
 
-1. Stop the Palworld server.
-2. Install or update the compatible UE4SS release specified by the Companion release notes.
-3. Copy the release's `PalCenterCompanion` directory to:
+The production build accepts the authorized UE4SS checkout as a local CMake input; it never downloads or commits protected dependencies:
+
+```powershell
+.\scripts\build-production.ps1 -Ue4ssRoot C:\src\RE-UE4SS
+```
+
+See [Production Toolchain](TOOLCHAIN.md) for source preparation and exact compiler pins. Missing paths, uninitialized UEPseudo sources, a different UE4SS commit, compiler mismatch, SDK mismatch, or wrong generator causes an explicit configure failure.
+
+Successful packaging creates:
+
+```text
+artifacts/
+├── PalCenterCompanion-0.1.0-win64.zip
+├── PalCenterCompanion-0.1.0-win64.zip.sha256
+└── stage/
+    └── PalCenterCompanion/
+        ├── dlls/
+        │   └── main.dll
+        ├── config/
+        │   └── PalCenterCompanion.ini
+        ├── enabled.txt
+        ├── README.txt
+        └── LICENSES/
+            └── THIRD-PARTY-NOTICES.txt
+```
+
+The package excludes UE4SS, UEPseudo, source trees, and contract-test output.
+
+## Install
+
+1. Stop PalServer and back up its current UE4SS configuration.
+2. Confirm the pinned compatible UE4SS loader is installed.
+3. Extract the complete `PalCenterCompanion` directory to:
 
    ```text
    PalServer/Pal/Binaries/Win64/ue4ss/Mods/PalCenterCompanion/
    ```
 
-4. Confirm this layout:
-
-   ```text
-   PalCenterCompanion/
-   ├── config/
-   │   └── PalCenterCompanion.ini
-   ├── dlls/
-   │   └── PalCenterCompanion.dll
-   └── enabled.txt
-   ```
-
-5. Restart the Palworld server.
+4. Confirm `dlls/main.dll`, the configuration, `enabled.txt`, README, and notices are present.
+5. Restart PalServer.
 6. Review `UE4SS.log` for the startup messages below.
-7. From the same machine, request `http://127.0.0.1:8213/palcenter/v1/health`.
+7. Verify all three endpoints from the server host.
 
-`enabled.txt` provides the intended copy-and-restart behavior. Administrators who manage explicit UE4SS load ordering may remove it and enable `PalCenterCompanion` in UE4SS's `mods.txt` instead.
+`enabled.txt` supplies copy-and-restart loading. Administrators using explicit UE4SS load ordering can remove it and enable `PalCenterCompanion` in `mods.txt` instead.
 
 ## Configuration
 
@@ -55,18 +76,71 @@ LogLevel=Information
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `Enabled` | `true` | Starts the embedded API when the server initializes. |
-| `BindAddress` | `127.0.0.1` | Network interface used by the embedded listener. |
-| `Port` | `8213` | Dedicated Companion API port, separate from Palworld's REST API. |
+| `Enabled` | `true` | Starts the embedded API after Unreal initialization. |
+| `BindAddress` | `127.0.0.1` | Interface used by the listener. |
+| `Port` | `8213` | Companion API port, separate from the official REST API. |
 | `LogLevel` | `Information` | Minimum level: `Debug`, `Information`, `Warning`, or `Error`. |
 
-Keep the default loopback address when PalCenter runs on the same host. If PalCenter is remote, bind to an appropriate private interface and restrict port `8213` to the PalCenter host with the operating-system firewall. This milestone does not provide API authentication or TLS and must not be exposed publicly.
+Invalid or missing configuration and listener startup failures produce an error and leave the Companion unavailable. They do not intentionally terminate PalServer. Automated tests cover defaults, disabled mode, alternate ports, malformed and missing files, invalid addresses, occupied ports, every log-level value, non-loopback warnings, and repeated listener cycles. Live PalServer results remain part of the UAT gate.
 
-Invalid configuration or a port-bind failure disables the Companion listener and records an error. It does not intentionally terminate the Palworld server.
+## Networking and Unraid
 
-## Startup verification
+`127.0.0.1` is reachable only inside the same process host or network namespace. It does not automatically cross container boundaries.
 
-Expected UE4SS log entries at the default information level:
+### Shared host network
+
+When PalCenter and the Windows PalServer process share the same host network namespace, loopback may be usable. Confirm from inside the PalCenter runtime rather than assuming that host networking removes all process or Wine isolation.
+
+### Separate containers
+
+When PalCenter and PalServer use separate containers:
+
+1. Set `BindAddress` to the Palworld container interface or `0.0.0.0`.
+2. Expose/map TCP port `8213` on the Palworld container.
+3. Configure future PalCenter detection with the Palworld container hostname or private IP, not `127.0.0.1`.
+4. Restrict access to the PalCenter container/network.
+
+For Unraid, add TCP port `8213` to the Palworld container template—not the PalCenter template—and use the Palworld container name when both containers share a custom Docker network.
+
+### Separate machine
+
+Bind to an appropriate private/LAN interface, permit TCP 8213 only from the PalCenter host, and never forward the port from the public Internet.
+
+Example Windows Firewall rule for a private PalCenter host at `192.0.2.10` (replace the documentation address with the real private address):
+
+```powershell
+New-NetFirewallRule -DisplayName "PalCenter Companion from PalCenter" `
+  -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8213 `
+  -RemoteAddress 192.0.2.10 -Profile Private
+```
+
+The API has no authentication or TLS in v0.1.0. Non-loopback access is only for controlled private-network testing. No gameplay or player data may be added before API authentication is implemented.
+
+## Verify endpoints
+
+From the server host:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8213/palcenter/v1/health
+Invoke-RestMethod http://127.0.0.1:8213/palcenter/v1/version
+Invoke-RestMethod http://127.0.0.1:8213/palcenter/v1/capabilities
+```
+
+Health contains only status and build/lifecycle metadata—never credentials, players, or gameplay data:
+
+```json
+{
+  "status": "healthy",
+  "applicationVersion": "0.1.0",
+  "apiVersion": "v1",
+  "startedAt": "2026-08-03T20:00:00Z",
+  "uptimeSeconds": 12
+}
+```
+
+## Startup and shutdown logs
+
+Expected startup:
 
 ```text
 [PalCenterCompanion] PalCenter Companion v0.1.0
@@ -75,28 +149,52 @@ Expected UE4SS log entries at the default information level:
 [PalCenterCompanion] API Version v1
 ```
 
-Health response:
+Expected normal unload:
 
-```json
-{
-  "status": "healthy",
-  "applicationVersion": "0.1.0",
-  "apiVersion": "v1",
-  "startedAt": "2026-08-02T20:00:00Z",
-  "uptimeSeconds": 12
-}
+```text
+[PalCenterCompanion] Companion stopped
 ```
+
+The listener binds before a dedicated worker thread enters its request loop. It does not run the HTTP loop on Unreal's game thread. Application lifecycle operations are mutex-protected; running state and bound port are atomic; handlers use server-owned immutable route state; shutdown calls `stop()`, waits for the listener thread and active server workers, and only then destroys listener state. A duplicate Unreal initialization callback is ignored. Bind failure degrades safely without starting a worker.
 
 ## PalCenter detection
 
-A future PalCenter integration will probe:
+A future PalCenter integration will request:
 
 ```text
-http://<palworld-server>:8213/palcenter/v1/health
+http://<private-palworld-address>:8213/palcenter/v1/health
 ```
 
-A compatible successful response means **Companion Connected**. A timeout, connection refusal, unsupported API version, or invalid response means **Companion Not Installed**. PalCenter continues all normal official REST API behavior in either case.
+A compatible response means **Companion Connected**. A timeout, refusal, unsupported API version, or invalid response means **Companion Not Installed**. PalCenter continues all official REST API behavior either way.
 
-## Clean shutdown
+## Troubleshooting
 
-When UE4SS unloads the extension, `uninstall_mod` destroys the Companion instance. Destruction stops the embedded listener, joins its worker thread, releases the port, and then returns control to UE4SS.
+### UE4SS does not list the Companion
+
+- Confirm the installed file is `PalCenterCompanion/dlls/main.dll`, not the contract-test DLL.
+- Confirm `enabled.txt` exists or the mod is enabled in `mods.txt`.
+- Confirm the package is nested exactly once under `ue4ss/Mods`.
+
+### Wrong UE4SS ABI or immediate load failure
+
+- Compare the server loader commit with [Production Toolchain](TOOLCHAIN.md).
+- Rebuild; never rename the contract-test DLL to `main.dll`.
+- Confirm the Microsoft Visual C++ 2015–2022 x64 Redistributable is installed.
+- Restore the backed-up UE4SS installation if other extensions also fail.
+
+### Port already in use
+
+```powershell
+Get-NetTCPConnection -LocalPort 8213 -ErrorAction SilentlyContinue
+```
+
+Stop the conflicting listener or select an unused private port in the INI and matching container/firewall configuration.
+
+### Listener fails or remote health is refused
+
+- Read the PalCenter Companion entries in `UE4SS.log`.
+- Verify `Enabled`, `BindAddress`, `Port`, and INI syntax.
+- Test loopback on the PalServer host first.
+- For containers, test from inside the PalCenter network namespace.
+- Confirm the private firewall rule and container port mapping.
+- Do not solve connectivity by exposing the unauthenticated API publicly.
