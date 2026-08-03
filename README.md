@@ -48,7 +48,7 @@ See the [installation guide](docs/INSTALLATION.md), [framework evaluation](docs/
 
 ## Compatibility and build status
 
-The production release candidate is pinned to Palworld Dedicated Server Steam build `24466863` (game version `v1.0.2.101103`) and Okaetsu RE-UE4SS commit `c838a8acaade1a0f860bdf249f039e58f4e10088`. The real DLL has passed initial load, endpoint, configuration, restart, private-network, PalDefender, and Offline Raid Protection UAT. PR #2 remains a draft because the pinned UE4SS process-exit path does not call C++ mod uninstall handlers and an actual Palworld client connection has not yet been tested.
+The production release candidate is pinned to Palworld Dedicated Server Steam build `24466863` (game version `v1.0.2.101103`) and Okaetsu RE-UE4SS commit `c838a8acaade1a0f860bdf249f039e58f4e10088`. The real DLL has passed load, endpoint, configuration, restart, private-network, PalDefender, Offline Raid Protection, and real-client compatibility UAT. The pinned UE4SS process-exit path does not call C++ mod uninstall handlers; process exit still releases Companion resources, while the contract runtime verifies explicit unload behavior.
 
 Public CI produces `PalCenterCompanion-contract-test.dll`. It validates PalCenter-owned lifecycle, endpoint, and shutdown behavior but is not a distributable UE4SS DLL. Authorized contributors can build and package the real `main.dll` using the exact Visual Studio, Windows SDK, Rust, and UE4SS pins in [Production Toolchain](docs/TOOLCHAIN.md), then complete [Live PalServer UAT](docs/LIVE-PALSERVER-UAT.md).
 

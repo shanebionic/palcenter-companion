@@ -23,7 +23,7 @@ Complete this checklist against a disposable or backed-up server before publishi
 - [x] Confirm `start_mod` executes.
 - [x] Confirm `on_unreal_init` executes once in each recorded server run.
 - [x] Confirm initialization returns and PalServer reaches its UDP and REST listening state.
-- [ ] Connect a real Palworld client and confirm normal playable state.
+- [x] Connect a real Palworld client and confirm normal playable state.
 - [x] Confirm PalDefender v1.8.3 loads alongside Companion.
 - [x] Confirm Offline Raid Protection v1.36.0 initializes alongside Companion.
 - [ ] Capture `Companion stopped` during normal PalServer shutdown. The pinned UE4SS process-exit path currently does not invoke C++ `uninstall_mod` handlers.

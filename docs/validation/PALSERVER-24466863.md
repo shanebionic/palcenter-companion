@@ -104,9 +104,9 @@ Capabilities:
 }
 ```
 
-## Remaining gates
+## Real-client compatibility
 
-An actual Palworld game client was not connected, so client-level playable-state validation remains pending.
+On 2026-08-03, a real Palworld client connected to the disposable server at its private test address and reached normal playable state. After the client disconnected, the official REST API remained healthy, the server reported game version `v1.0.2.101103`, the Companion health endpoint remained healthy, and the PalServer processes remained running. No production server, public address, credential, or player identity was recorded.
 
 The pinned UE4SS revision's `DLL_PROCESS_DETACH` path calls `UE4SSProgram::static_cleanup()`, whose destructor stops its event loop and closes logging but does not call `uninstall_mods()`. Consequently, normal PalServer shutdown released port 8213 at process exit but did not call Companion's `uninstall_mod` or emit `Companion stopped`. The contract-test DLL still proves explicit `uninstall_mod` cleanly stops and joins the listener. Blocking teardown must not be added to `DllMain` because it runs under the Windows loader lock.
 
@@ -124,4 +124,4 @@ The capability-negotiation build was revalidated on the same disposable PalServe
 - A production PalCenter API instance discovered the Companion using explicit host `127.0.0.1` and port `18213`, reported invalid-token failure distinctly, kept the token out of public responses, and continued reporting the official REST server online.
 - PalServer shut down cleanly after the checks, and the Companion configuration was restored to `127.0.0.1:8213`.
 
-No real Palworld game client was connected during this follow-up. The earlier UE4SS process-exit limitation remains unchanged.
+The authenticated discovery follow-up itself did not include a client session. The later real-client compatibility check above completed that release gate. The earlier UE4SS process-exit limitation remains unchanged.
