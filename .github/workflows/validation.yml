@@ -106,7 +106,6 @@ jobs:
         run: |
           $output = & cmake -S . -B build-production-missing `
             -G "Visual Studio 17 2022" -A x64 `
-            -DCMAKE_SYSTEM_VERSION=10.0.26100.0 `
             -DPALCENTER_UE4SS_BUILD_MODE=PRODUCTION 2>&1
           if ($LASTEXITCODE -eq 0) {
             throw "Production configuration unexpectedly accepted a missing authorized toolchain."
