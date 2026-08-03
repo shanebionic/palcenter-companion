@@ -92,9 +92,12 @@ bool CompanionApplication::initialize(const std::filesystem::path& config_path) 
           "Companion is bound beyond loopback; restrict access with the host firewall");
     }
 
+    const auto instance_id = load_or_create_instance_id(config_path);
+    activity_buffer_ = std::make_shared<PlayerActivityBuffer>();
+    session_tracker_ = std::make_unique<PlayerSessionTracker>(instance_id, *activity_buffer_);
     http_server_ = std::make_unique<CompanionHttpServer>(
-        config, filtered_log_sink, load_or_create_instance_id(config_path),
-        load_or_create_api_token(config_path));
+        config, filtered_log_sink, instance_id, load_or_create_api_token(config_path),
+        activity_buffer_);
     if (!http_server_->start()) {
       http_server_.reset();
       return false;
@@ -111,6 +114,8 @@ bool CompanionApplication::initialize(const std::filesystem::path& config_path) 
               "Companion initialization failed; the Palworld server will continue: " +
                   std::string(error.what()));
     http_server_.reset();
+    session_tracker_.reset();
+    activity_buffer_.reset();
     runtime_log_sink_ = {};
     return false;
   }
@@ -121,6 +126,8 @@ void CompanionApplication::shutdown() noexcept {
   if (http_server_) {
     http_server_->stop();
     http_server_.reset();
+    session_tracker_.reset();
+    activity_buffer_.reset();
     if (runtime_log_sink_) {
       runtime_log_sink_(LogLevel::information, "Companion stopped");
     }
@@ -131,6 +138,16 @@ void CompanionApplication::shutdown() noexcept {
 bool CompanionApplication::is_running() const noexcept {
   std::scoped_lock lock(lifecycle_mutex_);
   return http_server_ != nullptr && http_server_->is_running();
+}
+
+bool CompanionApplication::player_joined(const PlayerIdentity& player) noexcept {
+  std::scoped_lock lock(lifecycle_mutex_);
+  return session_tracker_ && session_tracker_->player_joined(player);
+}
+
+bool CompanionApplication::player_left(const std::string_view stable_player_key) noexcept {
+  std::scoped_lock lock(lifecycle_mutex_);
+  return session_tracker_ && session_tracker_->player_left(stable_player_key);
 }
 
 }  // namespace palcenter::companion

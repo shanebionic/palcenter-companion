@@ -1,6 +1,6 @@
 # Live PalServer UAT
 
-Complete this checklist against a disposable or backed-up server before publishing v0.1.0. Record exact, unedited log excerpts with timestamps. Do not mark a row passed without live evidence.
+Complete this checklist against a disposable or backed-up server before publishing v0.3.0. Record sanitized evidence with timestamps. Do not mark a row passed without live evidence.
 
 ## Test record
 
@@ -8,8 +8,8 @@ Complete this checklist against a disposable or backed-up server before publishi
 | --- | --- | --- |
 | Palworld Dedicated Server | Steam build `24466863`, game `v1.0.2.101103` | Passed initial UAT |
 | UE4SS | `c838a8acaade1a0f860bdf249f039e58f4e10088` | Passed initial UAT |
-| Companion DLL SHA-256 | `368dc543e71e0e49a9d2d5160f216cbd41aa74dc18f6d183d32e1a0b98a88bee` | Verified |
-| Package SHA-256 | `79b43ca893a36575ca107bf8e24350a1ede4e570e5134a85f393d85f91b80a8c` | Verified |
+| Companion DLL SHA-256 | Record from the final PR artifact | Pending final artifact |
+| Package SHA-256 | Record from the final PR artifact | Pending final artifact |
 | PalDefender | v1.8.3 | Loaded alongside Companion |
 | Offline Raid Protection | v1.36.0, CurseForge file `7925687` | Initialized alongside Companion |
 | Server host/network | Disposable Windows host plus separate Docker network namespace | Passed |
@@ -37,14 +37,37 @@ Run all three from the PalServer host, then run health from the network location
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8213/palcenter/v1/health
-Invoke-RestMethod http://127.0.0.1:8213/palcenter/v1/version
-Invoke-RestMethod http://127.0.0.1:8213/palcenter/v1/capabilities
 Invoke-RestMethod http://<private-palserver-address>:8213/palcenter/v1/health
+```
+
+Use the generated bearer token for authenticated endpoints; never paste a real
+token into committed test evidence:
+
+```powershell
+$headers = @{ Authorization = "Bearer <companion-token>" }
+Invoke-RestMethod http://127.0.0.1:8213/palcenter/v1/version -Headers $headers
+Invoke-RestMethod http://127.0.0.1:8213/palcenter/v1/capabilities -Headers $headers
+Invoke-RestMethod http://127.0.0.1:8213/palcenter/v1/activity -Headers $headers
 ```
 
 - [x] Responses match the documented v1 contract.
 - [x] Health contains no credentials, player data, or gameplay information.
 - [x] A separate Docker network namespace reaches the explicitly configured private listener through `host.docker.internal`; loopback remains the restored default.
+
+## v0.3 player Activity
+
+- [x] A real client join produces exactly one `player_joined` and one
+  `session_started` record with a shared session ID.
+- [x] A real client disconnect produces exactly one `player_left` and one
+  `session_ended` record with the same session ID.
+- [x] The server-side `PalPlayerState` EndPlay callback supplies the departure
+  boundary on Steam build `24466863`.
+- [x] Repeated hook delivery is deduplicated by the session tracker.
+- [x] Restarting PalServer clears the documented memory-only Activity buffer.
+- [x] PalServer remains healthy after join, disconnect, and restart cycles.
+- [x] No IP address, token, or password appears in Activity responses or logs.
+- [ ] Repeat final live-client UAT with the release-candidate artifact and
+  record its hashes before publishing.
 
 ## Configuration matrix
 
@@ -72,7 +95,7 @@ For each case, restart PalServer, capture the relevant log, verify expected list
 Startup should include:
 
 ```text
-[PalCenterCompanion] PalCenter Companion v0.1.0
+[PalCenterCompanion] PalCenter Companion v0.3.0
 [PalCenterCompanion] Companion initialized
 [PalCenterCompanion] Listening on 127.0.0.1:8213
 [PalCenterCompanion] API Version v1

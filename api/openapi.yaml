@@ -3,8 +3,8 @@ info:
   title: PalCenter Companion API
   version: 1.0.0
   description: >-
-    Contract for the optional PalCenter Companion discovery listener. Version
-    0.1.0 exposes no gameplay information.
+    Contract for the optional PalCenter Companion listener. Version 0.3.0 adds
+    bounded player activity from server hooks.
 servers:
   - url: /palcenter/v1
 paths:
@@ -45,6 +45,35 @@ paths:
               schema:
                 $ref: "#/components/schemas/CapabilitiesResponse"
         "401": { $ref: "#/components/responses/Unauthorized" }
+  /activity:
+    get:
+      security: [{ bearerAuth: [] }]
+      operationId: getPlayerActivity
+      summary: Read recent player activity
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 100 }
+        - in: query
+          name: after
+          description: Return records newer than this UTC timestamp.
+          schema: { type: string, format: date-time }
+        - in: query
+          name: player
+          description: Match a stable user ID or player ID.
+          schema: { type: string, maxLength: 128 }
+      responses:
+        "200":
+          description: Chronological records retained by the bounded in-memory buffer.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ActivityResponse" }
+        "400":
+          description: Invalid query parameters.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
 components:
   securitySchemes:
     bearerAuth:
@@ -83,7 +112,7 @@ components:
           type: string
           pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
           examples:
-            - 0.1.0
+            - 0.3.0
         apiVersion:
           type: string
           const: v1
@@ -126,6 +155,46 @@ components:
         capabilityVersion:
           type: string
       additionalProperties: true
+    ActivityResponse:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, restartBehavior, activity, oldestTimestamp, newestTimestamp]
+      properties:
+        schemaVersion: { type: string, const: "1" }
+        restartBehavior: { type: string, const: memory_only }
+        activity:
+          type: array
+          maxItems: 200
+          items: { $ref: "#/components/schemas/PlayerActivity" }
+        oldestTimestamp: { type: [string, "null"], format: date-time }
+        newestTimestamp: { type: [string, "null"], format: date-time }
+    PlayerActivity:
+      type: object
+      additionalProperties: false
+      required: [eventId, eventType, timestamp, serverInstanceId, player, sessionId, source, schemaVersion, durationSeconds, metadata]
+      properties:
+        eventId: { type: string }
+        eventType:
+          type: string
+          enum: [player_joined, player_left, session_started, session_ended]
+        timestamp: { type: string, format: date-time }
+        serverInstanceId: { type: string }
+        player:
+          type: object
+          additionalProperties: false
+          required: [userId, playerId, name]
+          properties:
+            userId: { type: [string, "null"] }
+            playerId: { type: [string, "null"] }
+            name: { type: string }
+        sessionId: { type: string }
+        source: { type: string, const: palworld_server_hook }
+        schemaVersion: { type: string, const: "1" }
+        durationSeconds:
+          type: [integer, "null"]
+          minimum: 0
+          description: Whole elapsed seconds for departure and session-end records; null otherwise.
+        metadata: { type: object, additionalProperties: true }
     ErrorResponse:
       type: object
       additionalProperties: false
