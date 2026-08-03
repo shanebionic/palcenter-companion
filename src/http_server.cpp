@@ -1,5 +1,6 @@
 #include "palcenter_companion/http_server.hpp"
 
+#include "palcenter_companion/authentication.hpp"
 #include "palcenter_companion/version.hpp"
 
 #include <httplib.h>
@@ -28,21 +29,42 @@ std::string format_utc(const std::chrono::system_clock::time_point value) {
   return output.str();
 }
 
-std::string version_response() {
+std::string version_response(const std::string_view instance_id,
+                             const std::chrono::system_clock::time_point started_at) {
+  const auto uptime = std::chrono::duration_cast<std::chrono::seconds>(
+                          std::chrono::system_clock::now() - started_at)
+                          .count();
   return "{\"application\":\"" + std::string(application_name) +
          "\",\"applicationVersion\":\"" + std::string(application_version) +
-         "\",\"apiVersion\":\"" + std::string(api_version) + "\"}";
+         "\",\"apiVersion\":\"" + std::string(api_version) +
+         "\",\"buildCommit\":\"" + std::string(build_commit) +
+         "\",\"buildBranch\":\"" + std::string(build_branch) +
+         "\",\"buildDate\":\"" + std::string(build_date) +
+         "\",\"compiler\":\"C++20\",\"palworldVersion\":null,\"ue4ssVersion\":null,"
+         "\"compatibility\":{\"minimumPalCenter\":\"1.4.0\","
+         "\"testedPalCenter\":\"1.4.0\",\"testedPalworld\":\"v1.0.2.101103\"},"
+         "\"runtime\":{\"startedAt\":\"" + format_utc(started_at) +
+         "\",\"uptimeSeconds\":" + std::to_string(uptime) +
+         ",\"instanceId\":\"" + std::string(instance_id) +
+         "\",\"checks\":{\"configuration\":\"healthy\",\"httpListener\":\"healthy\","
+         "\"ue4ssIntegration\":\"healthy\",\"eventEngine\":\"not_available\"}}}";
 }
 
 constexpr std::string_view capabilities_response{
-    R"({"events":false,"guilds":false,"bases":false,"performance":false,"moderation":false})"};
+    R"({"schemaVersion":"1","categories":{"events":{"supported":false,"capabilityVersion":"1"},"coordinateSpaces":{"supported":false,"capabilityVersion":"1"},"guilds":{"supported":false,"capabilityVersion":"1"},"bases":{"supported":false,"capabilityVersion":"1"},"performance":{"supported":false,"capabilityVersion":"1"},"moderation":{"supported":false,"capabilityVersion":"1"},"administration":{"supported":false,"capabilityVersion":"1"},"health":{"supported":true,"capabilityVersion":"1"},"version":{"supported":true,"capabilityVersion":"1"}}})"};
 
 }  // namespace
 
-CompanionHttpServer::CompanionHttpServer(CompanionConfig config, LogSink log_sink)
+CompanionHttpServer::CompanionHttpServer(CompanionConfig config, LogSink log_sink,
+                                         std::string instance_id, std::string api_token)
     : config_(std::move(config)),
       log_sink_(std::move(log_sink)),
-      server_(std::make_unique<httplib::Server>()) {
+      server_(std::make_unique<httplib::Server>()), instance_id_(std::move(instance_id)),
+      api_token_(std::move(api_token)) {
+  server_->set_payload_max_length(1024);
+  server_->set_read_timeout(5, 0);
+  server_->set_write_timeout(5, 0);
+  server_->set_keep_alive_max_count(10);
   register_routes();
 }
 
@@ -97,24 +119,36 @@ bool CompanionHttpServer::is_running() const noexcept { return running_; }
 std::uint16_t CompanionHttpServer::bound_port() const noexcept { return bound_port_; }
 
 void CompanionHttpServer::register_routes() {
-  server_->Get("/palcenter/v1/health", [this](const httplib::Request&, httplib::Response& response) {
-    response.set_content(health_response(), std::string(json_content_type));
+  const auto authenticated = [this](const httplib::Request& request, httplib::Response& response) {
+    const auto authorization = request.get_header_value("Authorization");
+    constexpr std::string_view prefix{"Bearer "};
+    if (!authorization.starts_with(prefix) || authorization.size() > prefix.size() + 128) {
+      response.status = 401;
+      response.set_content(R"({"error":"authentication_required","message":"Valid bearer authentication is required."})",
+                           std::string(json_content_type));
+      return false;
+    }
+    const std::string_view supplied{authorization.data() + prefix.size(),
+                                    authorization.size() - prefix.size()};
+    if (supplied.empty() || !constant_time_token_equal(supplied, api_token_)) {
+      response.status = 401;
+      response.set_content(R"({"error":"authentication_required","message":"Valid bearer authentication is required."})",
+                           std::string(json_content_type));
+      return false;
+    }
+    return true;
+  };
+  server_->Get("/palcenter/v1/health", [](const httplib::Request&, httplib::Response& response) {
+    response.set_content(R"({"status":"healthy"})", std::string(json_content_type));
   });
-  server_->Get("/palcenter/v1/version", [](const httplib::Request&, httplib::Response& response) {
-    response.set_content(version_response(), std::string(json_content_type));
+  server_->Get("/palcenter/v1/version", [authenticated, this](const httplib::Request& request, httplib::Response& response) {
+    if (!authenticated(request, response)) return;
+    response.set_content(version_response(instance_id_, started_at_), std::string(json_content_type));
   });
-  server_->Get("/palcenter/v1/capabilities", [](const httplib::Request&, httplib::Response& response) {
+  server_->Get("/palcenter/v1/capabilities", [authenticated](const httplib::Request& request, httplib::Response& response) {
+    if (!authenticated(request, response)) return;
     response.set_content(std::string(capabilities_response), std::string(json_content_type));
   });
-}
-
-std::string CompanionHttpServer::health_response() const {
-  const auto now = std::chrono::system_clock::now();
-  const auto uptime = std::chrono::duration_cast<std::chrono::seconds>(now - started_at_).count();
-  return "{\"status\":\"healthy\",\"applicationVersion\":\"" +
-         std::string(application_version) + "\",\"apiVersion\":\"" + std::string(api_version) +
-         "\",\"startedAt\":\"" + format_utc(started_at_) + "\",\"uptimeSeconds\":" +
-         std::to_string(uptime) + "}";
 }
 
 }  // namespace palcenter::companion

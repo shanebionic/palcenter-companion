@@ -10,9 +10,10 @@ Restart PalServer, then verify the startup messages in UE4SS.log and request:
 
 http://127.0.0.1:8213/palcenter/v1/health
 
-The API is unauthenticated in this milestone. Keep it on loopback unless
-performing controlled private-network testing. Never expose port 8213 directly
-to the public Internet.
+On first startup, the Companion creates config/PalCenterCompanion.token. Copy
+that token into PalCenter's Advanced Companion Connection settings. Keep the
+file private; it is not logged or returned by the API. Only the minimal health
+probe is public. Keep port 8213 on loopback or a trusted private network.
 
 Compatibility and configuration instructions:
 https://github.com/shanebionic/palcenter-companion/blob/main/docs/INSTALLATION.md

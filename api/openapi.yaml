@@ -21,6 +21,7 @@ paths:
                 $ref: "#/components/schemas/HealthResponse"
   /version:
     get:
+      security: [{ bearerAuth: [] }]
       operationId: getVersion
       summary: Read application and API versions
       responses:
@@ -30,8 +31,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/VersionResponse"
+        "401": { $ref: "#/components/responses/Unauthorized" }
   /capabilities:
     get:
+      security: [{ bearerAuth: [] }]
       operationId: getCapabilities
       summary: Discover available authoritative capabilities
       responses:
@@ -41,33 +44,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CapabilitiesResponse"
+        "401": { $ref: "#/components/responses/Unauthorized" }
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer authentication.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
   schemas:
     HealthResponse:
       type: object
       additionalProperties: false
       required:
         - status
-        - applicationVersion
-        - apiVersion
-        - startedAt
-        - uptimeSeconds
       properties:
         status:
           type: string
           const: healthy
-        applicationVersion:
-          type: string
-          pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
-        apiVersion:
-          type: string
-          const: v1
-        startedAt:
-          type: string
-          format: date-time
-        uptimeSeconds:
-          type: integer
-          minimum: 0
     VersionResponse:
       type: object
       additionalProperties: false
@@ -75,6 +74,7 @@ components:
         - application
         - applicationVersion
         - apiVersion
+        - compatibility
       properties:
         application:
           type: string
@@ -87,28 +87,49 @@ components:
         apiVersion:
           type: string
           const: v1
+        buildCommit:
+          type: string
+        buildBranch:
+          type: string
+        buildDate:
+          type: string
+        compiler:
+          type: string
+        palworldVersion:
+          type: [string, "null"]
+        ue4ssVersion:
+          type: [string, "null"]
+        compatibility:
+          type: object
+          additionalProperties:
+            type: string
+        runtime:
+          type: object
+          additionalProperties: true
     CapabilitiesResponse:
       type: object
       additionalProperties: true
-      required:
-        - events
-        - guilds
-        - bases
-        - performance
-        - moderation
+      required: [schemaVersion, categories]
       properties:
-        events:
+        schemaVersion:
+          type: string
+        categories:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/Capability"
+    Capability:
+      type: object
+      required: [supported, capabilityVersion]
+      properties:
+        supported:
           type: boolean
-          default: false
-        guilds:
-          type: boolean
-          default: false
-        bases:
-          type: boolean
-          default: false
-        performance:
-          type: boolean
-          default: false
-        moderation:
-          type: boolean
-          default: false
+        capabilityVersion:
+          type: string
+      additionalProperties: true
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error, message]
+      properties:
+        error: { type: string }
+        message: { type: string }

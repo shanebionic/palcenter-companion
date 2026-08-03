@@ -12,6 +12,9 @@ set(PALCENTER_UE4SS_ROOT "" CACHE PATH "Path to a compatible RE-UE4SS source che
 set(PALCENTER_PINNED_UE4SS_COMMIT "c838a8acaade1a0f860bdf249f039e58f4e10088")
 set(PALCENTER_PINNED_WINDOWS_SDK "10.0.26100.0")
 set(PALCENTER_PINNED_RUST_VERSION "1.88.0")
+set(PALCENTER_BUILD_COMMIT "unknown" CACHE STRING "Source commit embedded in diagnostics")
+set(PALCENTER_BUILD_BRANCH "unknown" CACHE STRING "Source branch embedded in diagnostics")
+string(TIMESTAMP PALCENTER_BUILD_DATE "%Y-%m-%dT%H:%M:%SZ" UTC)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -37,16 +40,26 @@ add_library(
   palcenter_companion_core
   STATIC
   src/application.cpp
+  src/authentication.cpp
   src/config.cpp
   src/http_server.cpp
 )
 target_include_directories(palcenter_companion_core PUBLIC include)
 target_link_libraries(palcenter_companion_core PUBLIC httplib::httplib)
+if(WIN32)
+  target_link_libraries(palcenter_companion_core PUBLIC bcrypt)
+endif()
 target_compile_definitions(
   palcenter_companion_core
   PUBLIC
     PALCENTER_COMPANION_VERSION="${PROJECT_VERSION}"
     PALCENTER_COMPANION_API_VERSION="v1"
+    PALCENTER_BUILD_COMMIT="${PALCENTER_BUILD_COMMIT}"
+    PALCENTER_BUILD_BRANCH="${PALCENTER_BUILD_BRANCH}"
+    PALCENTER_BUILD_DATE="${PALCENTER_BUILD_DATE}"
+  PRIVATE
+    CPPHTTPLIB_REQUEST_URI_MAX_LENGTH=2048
+    CPPHTTPLIB_HEADER_MAX_LENGTH=8192
 )
 set_target_properties(palcenter_companion_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 

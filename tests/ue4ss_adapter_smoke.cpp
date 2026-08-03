@@ -28,20 +28,6 @@ Function exported_function(const HMODULE module, const char* name) {
   return reinterpret_cast<Function>(address);
 }
 
-std::string started_at_value(const std::string& body) {
-  constexpr std::string_view prefix{"\"startedAt\":\""};
-  const auto begin = body.find(prefix);
-  if (begin == std::string::npos) {
-    throw std::runtime_error("health response is missing startedAt");
-  }
-  const auto value_begin = begin + prefix.size();
-  const auto end = body.find('"', value_begin);
-  if (end == std::string::npos) {
-    throw std::runtime_error("health response has invalid startedAt");
-  }
-  return body.substr(value_begin, end - value_begin);
-}
-
 }  // namespace
 
 int main() {
@@ -74,7 +60,7 @@ int main() {
     companion->on_unreal_init();
     const auto health_after_duplicate = client.Get("/palcenter/v1/health");
     if (!health_after_duplicate || health_after_duplicate->status != 200 ||
-        started_at_value(health_after_duplicate->body) != started_at_value(health->body)) {
+        health_after_duplicate->body != health->body) {
       throw std::runtime_error("duplicate on_unreal_init replaced or interrupted the listener");
     }
 

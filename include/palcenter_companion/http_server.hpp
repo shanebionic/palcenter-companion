@@ -9,6 +9,7 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <string>
 
 namespace httplib {
 class Server;
@@ -18,7 +19,8 @@ namespace palcenter::companion {
 
 class CompanionHttpServer final {
  public:
-  CompanionHttpServer(CompanionConfig config, LogSink log_sink);
+  CompanionHttpServer(CompanionConfig config, LogSink log_sink,
+                      std::string instance_id = "ephemeral", std::string api_token = "test-token");
   ~CompanionHttpServer();
 
   CompanionHttpServer(const CompanionHttpServer&) = delete;
@@ -31,8 +33,6 @@ class CompanionHttpServer final {
 
  private:
   void register_routes();
-  std::string health_response() const;
-
   CompanionConfig config_;
   LogSink log_sink_;
   std::unique_ptr<httplib::Server> server_;
@@ -40,6 +40,8 @@ class CompanionHttpServer final {
   std::atomic<bool> running_{false};
   std::atomic<std::uint16_t> bound_port_{0};
   std::chrono::system_clock::time_point started_at_{};
+  std::string instance_id_;
+  std::string api_token_;
   mutable std::mutex lifecycle_mutex_;
 };
 

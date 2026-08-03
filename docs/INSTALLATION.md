@@ -161,6 +161,8 @@ The pinned UE4SS revision does not call `uninstall_mods()` from its process-deta
 
 ## PalCenter detection
 
+The generated API credential is stored at `PalCenterCompanion/config/PalCenterCompanion.token`. To rotate it, stop PalServer, replace the file with a new 64-character hexadecimal token generated from 32 secure random bytes, update PalCenter, and restart. Never send it in a URL or share the Palworld administrator password.
+
 A future PalCenter integration will request:
 
 ```text
