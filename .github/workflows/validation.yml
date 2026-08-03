@@ -113,6 +113,7 @@ jobs:
           if (($output -join "`n") -notmatch "PALCENTER_UE4SS_ROOT") {
             throw "Production configuration did not provide the expected actionable error."
           }
+          $global:LASTEXITCODE = 0
       - name: Prevent packaging the contract-test DLL
         shell: pwsh
         run: |
