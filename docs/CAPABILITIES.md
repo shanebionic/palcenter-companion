@@ -22,6 +22,7 @@ Only the `health` and `version` discovery capabilities are supported in this mil
 | --- | --- |
 | `events` | Authoritative event query or streaming interfaces are available. |
 | `coordinateSpaces` | Authoritative coordinate-space identification is available. |
+| `playerLocations` | Current server-owned player locations are available. |
 | `guilds` | Authoritative guild information is available. |
 | `bases` | Authoritative base information is available. |
 | `performance` | Companion-sourced server performance data is available. |

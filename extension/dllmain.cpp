@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <iomanip>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -109,6 +110,8 @@ class PalCenterCompanionMod final : public RC::CppUserModBase {
  private:
 #ifdef PALCENTER_PRODUCTION_HOOKS
   struct ControllerParameter { RC::Unreal::UObject* controller; };
+  struct StageInstanceId { RC::Unreal::FGuid internal_id; bool valid; };
+  struct ActivePlayer { RC::Unreal::UObject* controller; PlayerIdentity identity; };
 
   static std::string player_id_from_guid(const RC::Unreal::FGuid& guid) {
     std::ostringstream value;
@@ -150,6 +153,32 @@ class PalCenterCompanionMod final : public RC::CppUserModBase {
     return identity_from_state(state_pointer ? *state_pointer : nullptr);
   }
 
+  static std::optional<PlayerLocation> location_from_controller(const ActivePlayer& player) {
+    PlayerLocation result;
+    result.player = player.identity;
+    result.captured_at = std::chrono::system_clock::now();
+    if (!player.controller) return std::nullopt;
+    const auto pawn_pointer = player.controller->GetValuePtrByPropertyNameInChain<RC::Unreal::UObject*>(STR("Pawn"));
+    if (!pawn_pointer || !*pawn_pointer) return std::nullopt;
+    const auto state_pointer = player.controller->GetValuePtrByPropertyNameInChain<RC::Unreal::UObject*>(STR("PlayerState"));
+    auto* state = state_pointer ? *state_pointer : nullptr;
+    if (!state) return std::nullopt;
+    const auto position = state->GetValuePtrByPropertyNameInChain<RC::Unreal::FVector>(STR("CachedPlayerLocation"));
+    if (!position) return std::nullopt;
+    result.x = position->X();
+    result.y = position->Y();
+    result.z = position->Z();
+    const auto record_pointer = state->GetValuePtrByPropertyNameInChain<RC::Unreal::UObject*>(STR("RecordData"));
+    auto* record = record_pointer ? *record_pointer : nullptr;
+    if (record) {
+      if (const auto stage = record->GetValuePtrByPropertyNameInChain<StageInstanceId>(STR("EnteringStageInstanceId")); stage && stage->valid) {
+        result.area = PlayerAreaKind::special_area;
+        result.stage_instance_id = player_id_from_guid(stage->internal_id);
+      }
+    }
+    return result;
+  }
+
   static void left(RC::Unreal::UnrealScriptFunctionCallableContext& context,
                    void* custom_data) {
     auto* application = static_cast<CompanionApplication*>(custom_data);
@@ -175,6 +204,7 @@ class PalCenterCompanionMod final : public RC::CppUserModBase {
             const auto identity = identity_from_state(actor);
             if (is_resolved_identity(identity)) {
               static_cast<void>(application_->player_left(identity.player_id));
+              std::erase_if(active_players_, [&identity](const ActivePlayer& player) { return player.identity.player_id == identity.player_id; });
               log_to_ue4ss(LogLevel::debug, "Palworld player-state end-play hook fired");
             }
             return;
@@ -185,6 +215,7 @@ class PalCenterCompanionMod final : public RC::CppUserModBase {
           const auto identity = identity_from_controller(actor);
           if (is_resolved_identity(identity)) {
             static_cast<void>(application_->player_left(identity.player_id));
+            std::erase_if(active_players_, [actor](const ActivePlayer& player) { return player.controller == actor; });
             log_to_ue4ss(LogLevel::debug, "Palworld player controller end-play hook fired");
           }
         },
@@ -218,12 +249,16 @@ class PalCenterCompanionMod final : public RC::CppUserModBase {
     engine_tick_hook_ = RC::Unreal::Hook::RegisterEngineTickPostCallback(
         [this](RC::Unreal::Hook::TCallbackIterationData<void>&, RC::Unreal::UEngine*, float,
                bool) {
-          if (!application_ || pending_joins_.empty()) return;
+          if (!application_) return;
           const auto now = std::chrono::steady_clock::now();
           std::erase_if(pending_joins_, [this, now](const PendingJoin& pending) {
             const auto identity = identity_from_controller(pending.controller);
             if (is_resolved_identity(identity)) {
               static_cast<void>(application_->player_joined(identity));
+              const auto active = std::ranges::any_of(active_players_, [&identity](const ActivePlayer& player) {
+                return player.identity.player_id == identity.player_id;
+              });
+              if (!active) active_players_.push_back({pending.controller, identity});
               log_to_ue4ss(LogLevel::debug, "Palworld player identity resolved");
               return true;
             }
@@ -234,6 +269,14 @@ class PalCenterCompanionMod final : public RC::CppUserModBase {
             }
             return false;
           });
+          if (now >= next_location_sample_) {
+            for (const auto& player : active_players_) {
+              if (auto location = location_from_controller(player)) {
+                application_->update_player_location(std::move(*location));
+              }
+            }
+            next_location_sample_ = now + location_sample_interval_;
+          }
         },
         std::move(tick_options));
     hooks_registered_ = true;
@@ -266,7 +309,10 @@ class PalCenterCompanionMod final : public RC::CppUserModBase {
   };
   static constexpr std::size_t maximum_pending_joins_{256};
   static constexpr std::chrono::seconds identity_resolution_timeout_{30};
+  static constexpr std::chrono::seconds location_sample_interval_{2};
   std::vector<PendingJoin> pending_joins_;
+  std::vector<ActivePlayer> active_players_;
+  std::chrono::steady_clock::time_point next_location_sample_{};
   RC::Unreal::Hook::GlobalCallbackId end_play_hook_{RC::Unreal::Hook::ERROR_ID};
   RC::Unreal::Hook::GlobalCallbackId begin_play_hook_{RC::Unreal::Hook::ERROR_ID};
   RC::Unreal::Hook::GlobalCallbackId engine_tick_hook_{RC::Unreal::Hook::ERROR_ID};

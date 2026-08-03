@@ -4,6 +4,10 @@ PalCenter Companion is an optional server-side extension for Palworld dedicated 
 
 PalCenter works fully without the Companion. When a compatible Companion is available, PalCenter can discover its capabilities and prefer authoritative data while retaining the official REST API as the fallback.
 
+The current location capability helps PalCenter show players on Palpagos and
+keeps players inside Palworld stage instances off the wrong map. It does not
+guess whether a special area is a dungeon, tower, arena, or the World Tree.
+
 > [!IMPORTANT]
 > Version 0.3.0 is in development. It helps PalCenter show exactly when players join and leave and how long they were online. PalCenter still works normally when the Companion is not installed.
 

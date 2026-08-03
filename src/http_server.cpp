@@ -66,17 +66,19 @@ std::string activity_response(std::vector<PlayerActivityRecord> records) {
 }
 
 constexpr std::string_view capabilities_response{
-    R"({"schemaVersion":"1","categories":{"events":{"supported":false,"capabilityVersion":"1"},"playerActivity":{"supported":true,"capabilityVersion":"1"},"coordinateSpaces":{"supported":false,"capabilityVersion":"1"},"guilds":{"supported":false,"capabilityVersion":"1"},"bases":{"supported":false,"capabilityVersion":"1"},"performance":{"supported":false,"capabilityVersion":"1"},"moderation":{"supported":false,"capabilityVersion":"1"},"administration":{"supported":false,"capabilityVersion":"1"},"health":{"supported":true,"capabilityVersion":"1"},"version":{"supported":true,"capabilityVersion":"1"}}})"};
+    R"({"schemaVersion":"1","categories":{"events":{"supported":false,"capabilityVersion":"1"},"playerActivity":{"supported":true,"capabilityVersion":"1"},"playerLocations":{"supported":true,"capabilityVersion":"1"},"coordinateSpaces":{"supported":true,"capabilityVersion":"1"},"guilds":{"supported":false,"capabilityVersion":"1"},"bases":{"supported":false,"capabilityVersion":"1"},"performance":{"supported":false,"capabilityVersion":"1"},"moderation":{"supported":false,"capabilityVersion":"1"},"administration":{"supported":false,"capabilityVersion":"1"},"health":{"supported":true,"capabilityVersion":"1"},"version":{"supported":true,"capabilityVersion":"1"}}})"};
 
 }  // namespace
 
 CompanionHttpServer::CompanionHttpServer(CompanionConfig config, LogSink log_sink,
                                          std::string instance_id, std::string api_token,
-                                         std::shared_ptr<PlayerActivityBuffer> activity)
+                                         std::shared_ptr<PlayerActivityBuffer> activity,
+                                         std::shared_ptr<PlayerLocationStore> locations)
     : config_(std::move(config)),
       log_sink_(std::move(log_sink)),
       server_(std::make_unique<httplib::Server>()), instance_id_(std::move(instance_id)),
-      api_token_(std::move(api_token)), activity_(std::move(activity)) {
+      api_token_(std::move(api_token)), activity_(std::move(activity)),
+      locations_(std::move(locations)) {
   server_->set_payload_max_length(1024);
   server_->set_read_timeout(5, 0);
   server_->set_write_timeout(5, 0);
@@ -207,6 +209,10 @@ void CompanionHttpServer::register_routes() {
       body = activity_response(records);
     }
     response.set_content(std::move(body), std::string(json_content_type));
+  });
+  server_->Get("/palcenter/v1/locations", [authenticated, this](const httplib::Request& request, httplib::Response& response) {
+    if (!authenticated(request, response)) return;
+    response.set_content(player_locations_json(locations_->current()), std::string(json_content_type));
   });
 }
 

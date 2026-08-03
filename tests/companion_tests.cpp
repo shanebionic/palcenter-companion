@@ -3,6 +3,7 @@
 #include "palcenter_companion/config.hpp"
 #include "palcenter_companion/http_server.hpp"
 #include "palcenter_companion/player_activity.hpp"
+#include "palcenter_companion/player_location.hpp"
 
 #include <httplib.h>
 
@@ -35,6 +36,9 @@ using palcenter::companion::LogLevel;
 using palcenter::companion::PlayerActivityBuffer;
 using palcenter::companion::PlayerIdentity;
 using palcenter::companion::PlayerSessionTracker;
+using palcenter::companion::PlayerAreaKind;
+using palcenter::companion::PlayerLocation;
+using palcenter::companion::PlayerLocationStore;
 
 class OccupiedPort final {
  public:
@@ -197,13 +201,19 @@ void test_http_endpoints_and_shutdown() {
   CompanionConfig config;
   config.port = 0;
   auto activity = std::make_shared<PlayerActivityBuffer>(4);
+  auto locations = std::make_shared<PlayerLocationStore>();
   PlayerSessionTracker sessions("instance-test", *activity);
   const PlayerIdentity denalb{"user-one", "player-one", "Denalb"};
   expect(sessions.player_joined(denalb), "First join should create a session");
   expect(!sessions.player_joined(denalb), "Repeated join should not duplicate a session");
+  locations->update({denalb, 123.5, -42.25, 7.0, PlayerAreaKind::palpagos, {},
+                     std::chrono::system_clock::time_point{std::chrono::seconds{1'700'000'000}}});
+  locations->update({{"user-two", "player-two", "Alex"}, 900.0, 800.0, 700.0,
+                     PlayerAreaKind::special_area, "stage-one",
+                     std::chrono::system_clock::time_point{std::chrono::seconds{1'700'000'001}}});
   CompanionHttpServer server(config, [&messages](const LogLevel, const std::string_view message) {
     messages.emplace_back(message);
-  }, "instance-test", "test-token", activity);
+  }, "instance-test", "test-token", activity, locations);
 
   expect(server.start(), "HTTP server should bind");
   expect(server.is_running(), "HTTP server should report running");
@@ -247,6 +257,9 @@ void test_http_endpoints_and_shutdown() {
   expect(capabilities->body.find("\"playerActivity\":{\"supported\":true") !=
              std::string::npos,
          "Player activity capability should be advertised");
+  expect(capabilities->body.find("\"playerLocations\":{\"supported\":true") !=
+             std::string::npos,
+         "Player locations capability should be advertised");
 
   const auto missing_activity_auth = client.Get("/palcenter/v1/activity");
   expect(missing_activity_auth && missing_activity_auth->status == 401,
@@ -261,6 +274,17 @@ void test_http_endpoints_and_shutdown() {
          "Activity must not expose authentication data");
   const auto invalid_limit = client.Get("/palcenter/v1/activity?limit=201", headers);
   expect(invalid_limit && invalid_limit->status == 400, "Activity limit should be bounded");
+  const auto location_response = client.Get("/palcenter/v1/locations", headers);
+  expect(location_response && location_response->status == 200,
+         "Authenticated locations should respond");
+  expect(location_response->body.find("\"coordinateSpaceId\":\"palpagos\"") !=
+             std::string::npos,
+         "Main-world locations should identify Palpagos explicitly");
+  expect(location_response->body.find("\"x\":123.500000") != std::string::npos,
+         "Locations should preserve authoritative coordinates");
+  expect(location_response->body.find("\"coordinateSpaceId\":\"special_area\"") !=
+             std::string::npos,
+         "Active Palworld stages should remain separate from Palpagos");
 
   server.stop();
   expect(!server.is_running(), "HTTP server should stop cleanly");
