@@ -85,7 +85,15 @@ jobs:
       - name: Verify UE4SS lifecycle exports
         shell: pwsh
         run: |
-          $exports = & dumpbin /exports build-extension/Release/PalCenterCompanion-contract-test.dll
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $dumpbin = & $vswhere -latest -products * `
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+            -find "VC\Tools\MSVC\**\bin\Hostx64\x64\dumpbin.exe" |
+            Select-Object -First 1
+          if (-not $dumpbin) {
+            throw "Unable to locate dumpbin.exe"
+          }
+          $exports = & $dumpbin /exports build-extension/Release/PalCenterCompanion-contract-test.dll
           foreach ($requiredExport in @("start_mod", "uninstall_mod")) {
             if ($exports -notmatch "\b$requiredExport\b") {
               throw "Missing required UE4SS export: $requiredExport"
