@@ -1,0 +1,98 @@
+openapi: 3.1.0
+info:
+  title: PalCenter Companion API
+  version: 1.0.0
+  description: >-
+    Foundation contract for optional PalCenter Companion discovery. This
+    contract does not imply that an HTTP service is implemented in v0.1.0.
+servers:
+  - url: /palcenter/v1
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Check Companion availability
+      responses:
+        "200":
+          description: The Companion can serve API requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /version:
+    get:
+      operationId: getVersion
+      summary: Read application and API versions
+      responses:
+        "200":
+          description: Version metadata for compatibility negotiation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VersionResponse"
+  /capabilities:
+    get:
+      operationId: getCapabilities
+      summary: Discover available authoritative capabilities
+      responses:
+        "200":
+          description: Explicitly supported Companion capabilities.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CapabilitiesResponse"
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          const: ok
+    VersionResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - application
+        - applicationVersion
+        - apiVersion
+      properties:
+        application:
+          type: string
+          const: palcenter-companion
+        applicationVersion:
+          type: string
+          pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          examples:
+            - 0.1.0
+        apiVersion:
+          type: string
+          const: v1
+    CapabilitiesResponse:
+      type: object
+      additionalProperties: true
+      required:
+        - events
+        - guilds
+        - bases
+        - performance
+        - moderation
+      properties:
+        events:
+          type: boolean
+          default: false
+        guilds:
+          type: boolean
+          default: false
+        bases:
+          type: boolean
+          default: false
+        performance:
+          type: boolean
+          default: false
+        moderation:
+          type: boolean
+          default: false
