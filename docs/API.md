@@ -98,3 +98,10 @@ See [capability negotiation](CAPABILITIES.md) for consumer behavior.
 - An unavailable endpoint, unsupported API version, timeout, or invalid response causes PalCenter to fall back safely rather than impair standard server management.
 
 The listener binds to `127.0.0.1:8213` by default. Only the minimal health probe is unauthenticated. Version, capabilities, and every future gameplay or administrative endpoint require bearer authentication by default. Missing, malformed, oversized, and invalid credentials receive the same `401` response; `403` is reserved for a future authenticated identity that lacks permission. Administrators who select a non-loopback address must restrict access with their host firewall.
+
+## `GET /palcenter/v1/locations`
+
+Returns the latest authoritative location for each connected player. Main-world
+locations use `palpagos`. An active Palworld stage instance uses
+`special_area`, so clients do not plot unrelated coordinates on the Palpagos
+map. See [Player locations](LOCATIONS.md).

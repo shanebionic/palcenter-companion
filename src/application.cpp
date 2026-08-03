@@ -94,10 +94,11 @@ bool CompanionApplication::initialize(const std::filesystem::path& config_path) 
 
     const auto instance_id = load_or_create_instance_id(config_path);
     activity_buffer_ = std::make_shared<PlayerActivityBuffer>();
+    location_store_ = std::make_shared<PlayerLocationStore>();
     session_tracker_ = std::make_unique<PlayerSessionTracker>(instance_id, *activity_buffer_);
     http_server_ = std::make_unique<CompanionHttpServer>(
         config, filtered_log_sink, instance_id, load_or_create_api_token(config_path),
-        activity_buffer_);
+        activity_buffer_, location_store_);
     if (!http_server_->start()) {
       http_server_.reset();
       return false;
@@ -116,9 +117,15 @@ bool CompanionApplication::initialize(const std::filesystem::path& config_path) 
     http_server_.reset();
     session_tracker_.reset();
     activity_buffer_.reset();
+    location_store_.reset();
     runtime_log_sink_ = {};
     return false;
   }
+}
+
+void CompanionApplication::update_player_location(PlayerLocation location) noexcept {
+  std::scoped_lock lock(lifecycle_mutex_);
+  if (location_store_) location_store_->update(std::move(location));
 }
 
 void CompanionApplication::shutdown() noexcept {
@@ -147,6 +154,7 @@ bool CompanionApplication::player_joined(const PlayerIdentity& player) noexcept 
 
 bool CompanionApplication::player_left(const std::string_view stable_player_key) noexcept {
   std::scoped_lock lock(lifecycle_mutex_);
+  if (location_store_) location_store_->remove(stable_player_key);
   return session_tracker_ && session_tracker_->player_left(stable_player_key);
 }
 

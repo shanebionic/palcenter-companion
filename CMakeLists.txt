@@ -44,6 +44,7 @@ add_library(
   src/config.cpp
   src/http_server.cpp
   src/player_activity.cpp
+  src/player_location.cpp
 )
 target_include_directories(palcenter_companion_core PUBLIC include)
 target_link_libraries(palcenter_companion_core PUBLIC httplib::httplib)
