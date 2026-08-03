@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(PalCenterCompanion VERSION 0.1.0 LANGUAGES CXX)
+project(PalCenterCompanion VERSION 0.3.0 LANGUAGES CXX)
 
 include(FetchContent)
 
@@ -43,6 +43,7 @@ add_library(
   src/authentication.cpp
   src/config.cpp
   src/http_server.cpp
+  src/player_activity.cpp
 )
 target_include_directories(palcenter_companion_core PUBLIC include)
 target_link_libraries(palcenter_companion_core PUBLIC httplib::httplib)
@@ -150,6 +151,7 @@ if(NOT PALCENTER_UE4SS_BUILD_MODE STREQUAL "OFF")
     target_compile_definitions(palcenter_ue4ss_adapter_smoke PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
     add_dependencies(palcenter_ue4ss_adapter_smoke PalCenterCompanion)
   else()
+    target_compile_definitions(PalCenterCompanion PRIVATE PALCENTER_PRODUCTION_HOOKS=1)
     set_target_properties(PalCenterCompanion PROPERTIES OUTPUT_NAME "main")
   endif()
 

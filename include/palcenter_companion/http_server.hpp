@@ -2,6 +2,7 @@
 
 #include "palcenter_companion/config.hpp"
 #include "palcenter_companion/logger.hpp"
+#include "palcenter_companion/player_activity.hpp"
 
 #include <atomic>
 #include <chrono>
@@ -20,7 +21,9 @@ namespace palcenter::companion {
 class CompanionHttpServer final {
  public:
   CompanionHttpServer(CompanionConfig config, LogSink log_sink,
-                      std::string instance_id = "ephemeral", std::string api_token = "test-token");
+                      std::string instance_id = "ephemeral", std::string api_token = "test-token",
+                      std::shared_ptr<PlayerActivityBuffer> activity =
+                          std::make_shared<PlayerActivityBuffer>());
   ~CompanionHttpServer();
 
   CompanionHttpServer(const CompanionHttpServer&) = delete;
@@ -42,6 +45,7 @@ class CompanionHttpServer final {
   std::chrono::system_clock::time_point started_at_{};
   std::string instance_id_;
   std::string api_token_;
+  std::shared_ptr<PlayerActivityBuffer> activity_;
   mutable std::mutex lifecycle_mutex_;
 };
 

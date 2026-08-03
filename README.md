@@ -5,7 +5,7 @@ PalCenter Companion is an optional server-side extension for Palworld dedicated 
 PalCenter works fully without the Companion. When a compatible Companion is available, PalCenter can discover its capabilities and prefer authoritative data while retaining the official REST API as the fallback.
 
 > [!IMPORTANT]
-> Version 0.1.0 is the first implementation milestone. It provides an embedded discovery API and UE4SS lifecycle adapter only. It contains no gameplay hooks, player information, telemetry, game events, or WebSocket service.
+> Version 0.3.0 is in development. It helps PalCenter show exactly when players join and leave and how long they were online. PalCenter still works normally when the Companion is not installed.
 
 ## Why it exists
 
@@ -34,13 +34,13 @@ The Companion is independent:
 
 ## Current scope
 
-Application version `0.1.0` provides:
+Application version `0.3.0` provides:
 
 - the separately versioned Companion API at `/palcenter/v1/`;
-- embedded `GET /health`, `GET /version`, and `GET /capabilities` endpoints;
+- embedded discovery endpoints and bounded `GET /activity` player history;
 - a UE4SS C++ extension lifecycle that starts and stops with PalServer;
 - local INI configuration and UE4SS-integrated startup logging;
-- capability negotiation with all gameplay capabilities disabled;
+- capability negotiation with player Activity support;
 - future event, coordinate-space, and live-stream designs;
 - a platform-neutral core with automated endpoint and lifecycle tests.
 
@@ -99,7 +99,7 @@ PalCenter's intelligence engine should prefer authoritative Companion events ove
 
 ## Project status
 
-The embedded discovery runtime is implemented, but v0.1.0 remains an early development milestone until a release binary completes its documented Palworld/UE4SS compatibility validation. Follow the [roadmap](ROADMAP.md) for planned milestones; roadmap items are directional and not promises of delivery dates.
+The v0.3.0 milestone is under active validation and is not released. Follow the [roadmap](ROADMAP.md) for planned milestones; roadmap items are directional and not promises of delivery dates.
 
 ## License
 

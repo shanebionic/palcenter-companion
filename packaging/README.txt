@@ -1,4 +1,4 @@
-PalCenter Companion 0.1.0
+PalCenter Companion 0.3.0
 ==========================
 
 This package contains the production UE4SS extension. Copy the entire

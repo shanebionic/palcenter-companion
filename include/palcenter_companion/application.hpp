@@ -20,11 +20,15 @@ class CompanionApplication final {
   bool initialize(const std::filesystem::path& config_path) noexcept;
   void shutdown() noexcept;
   [[nodiscard]] bool is_running() const noexcept;
+  bool player_joined(const PlayerIdentity& player) noexcept;
+  bool player_left(std::string_view stable_player_key) noexcept;
 
  private:
   LogSink log_sink_;
   LogSink runtime_log_sink_;
   std::unique_ptr<CompanionHttpServer> http_server_;
+  std::shared_ptr<PlayerActivityBuffer> activity_buffer_;
+  std::unique_ptr<PlayerSessionTracker> session_tracker_;
   mutable std::mutex lifecycle_mutex_;
   bool initialization_attempted_{false};
 };

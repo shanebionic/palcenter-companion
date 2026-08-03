@@ -6,6 +6,7 @@
 #include <httplib.h>
 
 #include <ctime>
+#include <charconv>
 #include <iomanip>
 #include <sstream>
 #include <string>
@@ -50,17 +51,32 @@ std::string version_response(const std::string_view instance_id,
          "\"ue4ssIntegration\":\"healthy\",\"eventEngine\":\"not_available\"}}}";
 }
 
+std::string activity_response(std::vector<PlayerActivityRecord> records) {
+  std::string output{"{\"schemaVersion\":\"1\",\"restartBehavior\":\"memory_only\",\"activity\":["};
+  for (std::size_t index = 0; index < records.size(); ++index) {
+    if (index > 0) output += ',';
+    output += activity_record_json(records[index]);
+  }
+  output += "],\"oldestTimestamp\":";
+  output += records.empty() ? "null" : "\"" + records.front().timestamp + "\"";
+  output += ",\"newestTimestamp\":";
+  output += records.empty() ? "null" : "\"" + records.back().timestamp + "\"";
+  output += '}';
+  return output;
+}
+
 constexpr std::string_view capabilities_response{
-    R"({"schemaVersion":"1","categories":{"events":{"supported":false,"capabilityVersion":"1"},"coordinateSpaces":{"supported":false,"capabilityVersion":"1"},"guilds":{"supported":false,"capabilityVersion":"1"},"bases":{"supported":false,"capabilityVersion":"1"},"performance":{"supported":false,"capabilityVersion":"1"},"moderation":{"supported":false,"capabilityVersion":"1"},"administration":{"supported":false,"capabilityVersion":"1"},"health":{"supported":true,"capabilityVersion":"1"},"version":{"supported":true,"capabilityVersion":"1"}}})"};
+    R"({"schemaVersion":"1","categories":{"events":{"supported":false,"capabilityVersion":"1"},"playerActivity":{"supported":true,"capabilityVersion":"1"},"coordinateSpaces":{"supported":false,"capabilityVersion":"1"},"guilds":{"supported":false,"capabilityVersion":"1"},"bases":{"supported":false,"capabilityVersion":"1"},"performance":{"supported":false,"capabilityVersion":"1"},"moderation":{"supported":false,"capabilityVersion":"1"},"administration":{"supported":false,"capabilityVersion":"1"},"health":{"supported":true,"capabilityVersion":"1"},"version":{"supported":true,"capabilityVersion":"1"}}})"};
 
 }  // namespace
 
 CompanionHttpServer::CompanionHttpServer(CompanionConfig config, LogSink log_sink,
-                                         std::string instance_id, std::string api_token)
+                                         std::string instance_id, std::string api_token,
+                                         std::shared_ptr<PlayerActivityBuffer> activity)
     : config_(std::move(config)),
       log_sink_(std::move(log_sink)),
       server_(std::make_unique<httplib::Server>()), instance_id_(std::move(instance_id)),
-      api_token_(std::move(api_token)) {
+      api_token_(std::move(api_token)), activity_(std::move(activity)) {
   server_->set_payload_max_length(1024);
   server_->set_read_timeout(5, 0);
   server_->set_write_timeout(5, 0);
@@ -148,6 +164,49 @@ void CompanionHttpServer::register_routes() {
   server_->Get("/palcenter/v1/capabilities", [authenticated](const httplib::Request& request, httplib::Response& response) {
     if (!authenticated(request, response)) return;
     response.set_content(std::string(capabilities_response), std::string(json_content_type));
+  });
+  server_->Get("/palcenter/v1/activity", [authenticated, this](const httplib::Request& request, httplib::Response& response) {
+    if (!authenticated(request, response)) return;
+    ActivityQuery query;
+    if (request.has_param("limit")) {
+      const auto raw = request.get_param_value("limit");
+      std::size_t parsed{};
+      const auto result = std::from_chars(raw.data(), raw.data() + raw.size(), parsed);
+      if (result.ec != std::errc{} || result.ptr != raw.data() + raw.size() || parsed < 1 || parsed > 200) {
+        response.status = 400;
+        response.set_content(R"({"error":"invalid_request","message":"The activity limit must be between 1 and 200."})",
+                             std::string(json_content_type));
+        return;
+      }
+      query.limit = parsed;
+    }
+    if (request.has_param("after")) {
+      const auto value = request.get_param_value("after");
+      if (value.size() > 32) {
+        response.status = 400;
+        response.set_content(R"({"error":"invalid_request","message":"The activity timestamp is invalid."})",
+                             std::string(json_content_type));
+        return;
+      }
+      query.after = value;
+    }
+    if (request.has_param("player")) {
+      const auto value = request.get_param_value("player");
+      if (value.empty() || value.size() > 128) {
+        response.status = 400;
+        response.set_content(R"({"error":"invalid_request","message":"The player filter is invalid."})",
+                             std::string(json_content_type));
+        return;
+      }
+      query.player = value;
+    }
+    auto records = activity_->query(query);
+    auto body = activity_response(records);
+    while (body.size() > 65'536 && !records.empty()) {
+      records.erase(records.begin());
+      body = activity_response(records);
+    }
+    response.set_content(std::move(body), std::string(json_content_type));
   });
 }
 

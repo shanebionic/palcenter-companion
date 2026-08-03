@@ -2,15 +2,27 @@
 
 ## Status
 
-The three discovery endpoints in this document are implemented by the embedded v0.1.0 HTTP listener. No gameplay or WebSocket API is implemented.
+The discovery endpoints and bounded player Activity endpoint are implemented by the embedded v0.3.0 development listener. No WebSocket API is implemented.
 
 The API version is independent from the Companion application version:
 
-- Application version: `0.1.0`
+- Application version: `0.3.0`
 - API version: `v1`
 - Base path: `/palcenter/v1/`
 
 The canonical machine-readable contract is [api/openapi.yaml](../api/openapi.yaml).
+
+## `GET /palcenter/v1/activity`
+
+Returns recent player joins, leaves, and session boundaries in chronological
+order. Bearer authentication is required. `limit` accepts 1–200, `after` is an
+exclusive UTC timestamp cursor, and `player` matches a user ID or player ID.
+Departure and session-end records include `durationSeconds`; join and
+session-start records return that field as `null`.
+
+The buffer is bounded and memory-only. Restarting Companion or PalServer clears
+it, so clients must tolerate a gap and continue with new records. Responses do
+not contain player IP addresses, passwords, or authentication tokens.
 
 ## `GET /palcenter/v1/health`
 
@@ -35,7 +47,7 @@ Example response:
 ```json
 {
   "application": "palcenter-companion",
-  "applicationVersion": "0.1.0",
+  "applicationVersion": "0.3.0",
   "apiVersion": "v1",
   "buildCommit": "abc1234",
   "buildBranch": "main",

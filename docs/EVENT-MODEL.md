@@ -2,7 +2,8 @@
 
 ## Status
 
-This is a design contract for future work. PalCenter Companion v0.1.0 does not produce gameplay events.
+PalCenter Companion v0.3.0 produces bounded player join, leave, session-start,
+and session-end activity. Other event families remain future work.
 
 The Companion is intended to be an authoritative event source. Events should describe what the Palworld server observed rather than require PalCenter to reconstruct behavior from positional telemetry.
 
@@ -32,11 +33,36 @@ Event IDs must remain stable when the same underlying observation is replayed af
 3. serialize them in a documented canonical order;
 4. hash the canonical representation with a versioned algorithm and namespace.
 
-Random UUIDs are unsuitable for replay deduplication. The final canonicalization and hash algorithm will be specified before event implementation. No guessed event identity scheme is treated as stable in v0.1.0.
+Player Activity IDs remain stable within the current in-memory delivery window
+and are derived from the server instance, stable player key, session timestamp,
+and activity type. They contain no private player data.
 
 ## Player identity
 
 The `player` object should use stable server-provided identifiers where available. Display names are mutable and must not be used as the sole identity key. Contracts must distinguish player, platform user, and display identities and must not expose more personal information than the event requires.
+
+## Palworld lifecycle hooks
+
+The v0.3 collector is event-driven and does not duplicate the official REST
+poller. On PalServer build `24466863`, the dedicated-server authority path is:
+
+- global actor BeginPlay for `PalPlayerController`, followed by a bounded
+  identity-resolution queue because Palworld populates `PlayerUId` after
+  BeginPlay;
+- global actor EndPlay for `PalPlayerState`, which is the tested player-specific
+  network-session departure signal.
+
+The identity queue is capped at 256 controllers and expires entries after 30
+seconds. `PlayerUId` is the stable session-history key exposed as `playerId`.
+The current hook does not expose the platform `userId`, so that field is
+`null`. `PlayerNamePrivate` is used when populated, with `AccountName` as the
+display-name fallback.
+
+Live testing proved that `K2_OnLogout`, controller EndPlay, controller
+`NetConnection`, `OnDestroyPawn`, and the player logout Blueprint action are
+not reliable normal-disconnect signals on this dedicated-server build. They
+must not be used to claim a clean-leave versus connection-loss distinction.
+The UI therefore uses the honest generic wording “left the server.”
 
 ## Confidence and evidence
 

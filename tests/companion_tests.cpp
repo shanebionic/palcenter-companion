@@ -2,6 +2,7 @@
 #include "palcenter_companion/authentication.hpp"
 #include "palcenter_companion/config.hpp"
 #include "palcenter_companion/http_server.hpp"
+#include "palcenter_companion/player_activity.hpp"
 
 #include <httplib.h>
 
@@ -31,6 +32,9 @@ using palcenter::companion::CompanionApplication;
 using palcenter::companion::CompanionConfig;
 using palcenter::companion::CompanionHttpServer;
 using palcenter::companion::LogLevel;
+using palcenter::companion::PlayerActivityBuffer;
+using palcenter::companion::PlayerIdentity;
+using palcenter::companion::PlayerSessionTracker;
 
 class OccupiedPort final {
  public:
@@ -192,9 +196,14 @@ void test_http_endpoints_and_shutdown() {
   std::vector<std::string> messages;
   CompanionConfig config;
   config.port = 0;
+  auto activity = std::make_shared<PlayerActivityBuffer>(4);
+  PlayerSessionTracker sessions("instance-test", *activity);
+  const PlayerIdentity denalb{"user-one", "player-one", "Denalb"};
+  expect(sessions.player_joined(denalb), "First join should create a session");
+  expect(!sessions.player_joined(denalb), "Repeated join should not duplicate a session");
   CompanionHttpServer server(config, [&messages](const LogLevel, const std::string_view message) {
     messages.emplace_back(message);
-  });
+  }, "instance-test", "test-token", activity);
 
   expect(server.start(), "HTTP server should bind");
   expect(server.is_running(), "HTTP server should report running");
@@ -212,7 +221,7 @@ void test_http_endpoints_and_shutdown() {
   httplib::Headers headers{{"Authorization", "Bearer test-token"}};
   const auto version = client.Get("/palcenter/v1/version", headers);
   expect(version && version->status == 200, "Version endpoint should respond");
-  expect(version->body.find("\"applicationVersion\":\"0.1.0\"") != std::string::npos,
+  expect(version->body.find("\"applicationVersion\":\"0.3.0\"") != std::string::npos,
          "Version response should include the application version");
   expect(version->body.find("\"compatibility\":") != std::string::npos,
          "Version response should include informational compatibility");
@@ -235,10 +244,61 @@ void test_http_endpoints_and_shutdown() {
          "Capabilities should use grouped categories");
   expect(capabilities->body.find("\"health\":{\"supported\":true") != std::string::npos,
          "Health capability should be advertised");
+  expect(capabilities->body.find("\"playerActivity\":{\"supported\":true") !=
+             std::string::npos,
+         "Player activity capability should be advertised");
+
+  const auto missing_activity_auth = client.Get("/palcenter/v1/activity");
+  expect(missing_activity_auth && missing_activity_auth->status == 401,
+         "Activity should require authentication");
+  const auto recent = client.Get("/palcenter/v1/activity?limit=1&player=user-one", headers);
+  expect(recent && recent->status == 200, "Filtered activity should respond");
+  expect(recent->body.find("\"eventType\":\"session_started\"") != std::string::npos,
+         "Activity should return stable chronological records");
+  expect(recent->body.find("Denalb") != std::string::npos,
+         "Activity should contain the public player name");
+  expect(recent->body.find("Authorization") == std::string::npos,
+         "Activity must not expose authentication data");
+  const auto invalid_limit = client.Get("/palcenter/v1/activity?limit=201", headers);
+  expect(invalid_limit && invalid_limit->status == 400, "Activity limit should be bounded");
 
   server.stop();
   expect(!server.is_running(), "HTTP server should stop cleanly");
   expect(server.bound_port() == 0, "Stopped server should release its port");
+}
+
+void test_player_activity_sessions_and_buffer() {
+  PlayerActivityBuffer buffer(4);
+  PlayerSessionTracker sessions("instance-one", buffer);
+  const PlayerIdentity first{"user-one", "player-one", "Denalb"};
+  const PlayerIdentity second{"user-two", "player-two", "Alex"};
+  const auto start = std::chrono::system_clock::time_point{std::chrono::seconds{1'700'000'000}};
+  expect(sessions.player_joined(first, start), "Join should create activity");
+  expect(!sessions.player_joined(first, start), "Duplicate hook notification should be ignored");
+  expect(sessions.player_joined(second, start + std::chrono::seconds{1}),
+         "Multiple players should have independent sessions");
+  expect(sessions.player_left("user-one", start + std::chrono::seconds{2}),
+         "Leave should close the matching session");
+  expect(!sessions.player_left("user-one", start + std::chrono::seconds{2}),
+         "Repeated leave should not duplicate activity");
+  expect(buffer.size() == 4, "Bounded buffer should evict the oldest records");
+  const auto all = buffer.query({200, std::nullopt, std::nullopt});
+  expect(all.size() == 4, "Bounded query should return retained records");
+  expect(all.front().timestamp <= all.back().timestamp, "Activity should remain chronological");
+  expect(all.back().event_id.find(all.back().session_id) == 0,
+         "Event IDs should remain stable within a session");
+  const auto player = buffer.query({10, std::nullopt, std::string{"user-one"}});
+  expect(player.size() == 2, "Player filter should select only retained matching records");
+  expect(player[0].duration_seconds == 2 && player[1].duration_seconds == 2,
+         "Departure records should include the completed session duration");
+  expect(activity_record_json(player.back()).find("\"durationSeconds\":2") !=
+             std::string::npos,
+         "Serialized activity should expose the completed session duration");
+  const auto after = buffer.query({10, all[1].timestamp, std::nullopt});
+  expect(after.size() == 2, "Timestamp cursor should be exclusive and duplicate-safe");
+
+  PlayerActivityBuffer restarted(4);
+  expect(restarted.size() == 0, "Activity buffer should honestly reset with the process");
 }
 
 void test_instance_id_persists() {
@@ -297,7 +357,7 @@ void test_application_configuration_and_logging() {
       return message.find(expected) != std::string::npos;
     });
   };
-  expect(contains("PalCenter Companion v0.1.0"), "Startup should log the version");
+  expect(contains("PalCenter Companion v0.3.0"), "Startup should log the version");
   expect(contains("Companion initialized"), "Startup should log initialization");
   expect(contains("Listening on 127.0.0.1:"), "Startup should log the listener");
   expect(contains("API Version v1"), "Startup should log the API version");
@@ -392,6 +452,7 @@ int main() {
   try {
     test_configuration();
     test_http_endpoints_and_shutdown();
+    test_player_activity_sessions_and_buffer();
     test_instance_id_persists();
     test_api_token_generation_and_persistence();
     test_application_configuration_and_logging();
