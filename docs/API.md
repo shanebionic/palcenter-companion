@@ -2,7 +2,7 @@
 
 ## Status
 
-This document defines an initial interface only. No HTTP service is implemented in v0.1.0.
+The three discovery endpoints in this document are implemented by the embedded v0.1.0 HTTP listener. No gameplay or WebSocket API is implemented.
 
 The API version is independent from the Companion application version:
 
@@ -14,13 +14,17 @@ The canonical machine-readable contract is [api/openapi.yaml](../api/openapi.yam
 
 ## `GET /palcenter/v1/health`
 
-Reports whether the Companion process can serve requests. It should be inexpensive and must not depend on gameplay capabilities being active.
+Reports whether the in-process Companion listener can serve requests. It is inexpensive and does not depend on gameplay capabilities being active.
 
 Example response:
 
 ```json
 {
-  "status": "ok"
+  "status": "healthy",
+  "applicationVersion": "0.1.0",
+  "apiVersion": "v1",
+  "startedAt": "2026-08-02T20:00:00Z",
+  "uptimeSeconds": 12
 }
 ```
 
@@ -64,4 +68,4 @@ See [capability negotiation](CAPABILITIES.md) for consumer behavior.
 - Removing a field or changing its type requires a new API version.
 - An unavailable endpoint, unsupported API version, timeout, or invalid response causes PalCenter to fall back safely rather than impair standard server management.
 
-Authentication, network binding, rate limits, and error-envelope details will be specified before implementation. They are intentionally not guessed in this foundation milestone.
+The discovery listener is unauthenticated in v0.1.0 and binds to `127.0.0.1:8213` by default. Administrators who select a non-loopback address must restrict access with their host firewall. Authentication, rate limits, and error-envelope details must be specified before gameplay or administrative capabilities are enabled.

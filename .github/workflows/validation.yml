@@ -61,6 +61,70 @@ jobs:
         run: npm ci
       - name: Validate project structure and API contracts
         run: npm run build
+      - name: Configure embedded runtime
+        run: cmake -S . -B build-core -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - name: Build embedded runtime
+        run: cmake --build build-core
+      - name: Test configuration, lifecycle, and HTTP endpoints
+        run: ctest --test-dir build-core --output-on-failure
+
+  extension:
+    name: UE4SS Extension
+    runs-on: windows-2022
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Configure Windows extension against the test lifecycle contract
+        run: >-
+          cmake -S . -B build-extension -G "Visual Studio 17 2022"
+          -DPALCENTER_BUILD_TESTS=ON
+          -DPALCENTER_UE4SS_BUILD_MODE=CONTRACT
+      - name: Build UE4SS extension
+        run: cmake --build build-extension --config Release
+      - name: Exercise load, initialize, endpoints, and unload lifecycle
+        run: ctest --test-dir build-extension -C Release --output-on-failure
+      - name: Verify UE4SS lifecycle exports
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $dumpbin = & $vswhere -latest -products * `
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+            -find "VC\Tools\MSVC\**\bin\Hostx64\x64\dumpbin.exe" |
+            Select-Object -First 1
+          if (-not $dumpbin) {
+            throw "Unable to locate dumpbin.exe"
+          }
+          $exports = & $dumpbin /exports build-extension/Release/PalCenterCompanion-contract-test.dll
+          $exportText = $exports -join "`n"
+          foreach ($requiredExport in @("start_mod", "uninstall_mod")) {
+            if ($exportText -notmatch "\b$requiredExport\b") {
+              throw "Missing required UE4SS export: $requiredExport"
+            }
+          }
+      - name: Reject production build without authorized toolchain
+        shell: pwsh
+        run: |
+          $output = & cmake -S . -B build-production-missing `
+            -G "Visual Studio 17 2022" -A x64 `
+            -DPALCENTER_UE4SS_BUILD_MODE=PRODUCTION 2>&1
+          if ($LASTEXITCODE -eq 0) {
+            throw "Production configuration unexpectedly accepted a missing authorized toolchain."
+          }
+          if (($output -join "`n") -notmatch "PALCENTER_UE4SS_ROOT") {
+            throw "Production configuration did not provide the expected actionable error."
+          }
+          $global:LASTEXITCODE = 0
+      - name: Prevent packaging the contract-test DLL
+        shell: pwsh
+        run: |
+          try {
+            ./scripts/package-production.ps1 -BuildDirectory build-extension -OutputDirectory rejected-package
+            throw "Contract-test output was unexpectedly packaged."
+          } catch {
+            if ($_.Exception.Message -notmatch "Contract-test|production main.dll") {
+              throw
+            }
+          }
 
   documentation:
     name: Documentation

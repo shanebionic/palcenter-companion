@@ -7,13 +7,16 @@ The roadmap describes intended direction, not committed dates. Each capability m
 - Repository, governance, and contribution standards
 - Versioned API and architecture contracts
 - Event, stream, and coordinate-space design
-- Lightweight validation
+- UE4SS extension lifecycle
+- Embedded health, version, and capability discovery
+- Configuration, logging, and lifecycle validation
 
-## v0.2 — Discovery
+## v0.2 — Compatibility and packaging
 
-- Health API
-- Version discovery
-- Capability negotiation
+- API authentication before any authoritative gameplay or player endpoint
+- Published Palworld and UE4SS compatibility matrix
+- Reproducible extension package
+- Administrator installation and upgrade validation
 
 ## v0.3 — Player sessions
 
