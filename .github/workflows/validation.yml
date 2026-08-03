@@ -61,6 +61,34 @@ jobs:
         run: npm ci
       - name: Validate project structure and API contracts
         run: npm run build
+      - name: Configure embedded runtime
+        run: cmake -S . -B build-core -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - name: Build embedded runtime
+        run: cmake --build build-core
+      - name: Test configuration, lifecycle, and HTTP endpoints
+        run: ctest --test-dir build-core --output-on-failure
+
+  extension:
+    name: UE4SS Extension
+    runs-on: windows-2022
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Check out pinned Palworld-compatible UE4SS source
+        shell: bash
+        run: |
+          git config --global url."https://github.com/".insteadOf git@github.com:
+          git clone https://github.com/Okaetsu/RE-UE4SS.git ue4ss
+          git -C ue4ss checkout c838a8acaade1a0f860bdf249f039e58f4e10088
+          git -C ue4ss submodule update --init --recursive --depth 1
+      - name: Configure UE4SS extension
+        run: >-
+          cmake -S . -B build-extension -G "Visual Studio 17 2022"
+          -DPALCENTER_BUILD_TESTS=OFF
+          -DPALCENTER_BUILD_UE4SS_EXTENSION=ON
+          -DPALCENTER_UE4SS_ROOT="${{ github.workspace }}/ue4ss"
+      - name: Build UE4SS extension
+        run: cmake --build build-extension --config Game__Shipping__Win64 --target PalCenterCompanion
 
   documentation:
     name: Documentation

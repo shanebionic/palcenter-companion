@@ -12,7 +12,7 @@ export async function listTextFiles(directory = ".") {
   for (const entry of entries) {
     const filePath = path.join(directory, entry.name);
     if (entry.isDirectory()) {
-      if (!ignoredDirectories.has(entry.name)) {
+      if (!ignoredDirectories.has(entry.name) && !entry.name.startsWith("build")) {
         files.push(...(await listTextFiles(filePath)));
       }
       continue;

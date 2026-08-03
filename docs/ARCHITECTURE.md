@@ -13,21 +13,35 @@ Palworld Dedicated Server
 
 PalCenter should discover the Companion, negotiate capabilities, and use supported authoritative data. If discovery fails or a capability is unavailable, PalCenter continues operating through the official REST API and existing inference paths.
 
-## Intended internal layers
+## Runtime layers
 
 ```text
-Game Hooks
+Palworld Dedicated Server
     ↓
-Internal Event Bus
+UE4SS lifecycle adapter
+    ↓
+Companion application
+    ↓
+Embedded HTTP listener
+    ↓
+PalCenter discovery
+```
+
+The UE4SS adapter, application, configuration loader, and HTTP listener are implemented in v0.1.0. The listener runs on a dedicated worker thread inside the PalServer process and is stopped and joined before the extension unloads.
+
+## Future internal layers
+
+```text
+Game Hooks (not implemented)
+    ↓
+Internal Event Bus (not implemented)
     ↓
 Companion API
     ↓
-HTTP / WebSocket
+HTTP / WebSocket (WebSocket not implemented)
     ↓
 PalCenter
 ```
-
-These are architectural boundaries, not implemented components in v0.1.0.
 
 ### Game Hooks
 

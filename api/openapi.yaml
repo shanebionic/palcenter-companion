@@ -3,8 +3,8 @@ info:
   title: PalCenter Companion API
   version: 1.0.0
   description: >-
-    Foundation contract for optional PalCenter Companion discovery. This
-    contract does not imply that an HTTP service is implemented in v0.1.0.
+    Contract for the optional PalCenter Companion discovery listener. Version
+    0.1.0 exposes no gameplay information.
 servers:
   - url: /palcenter/v1
 paths:
@@ -48,10 +48,26 @@ components:
       additionalProperties: false
       required:
         - status
+        - applicationVersion
+        - apiVersion
+        - startedAt
+        - uptimeSeconds
       properties:
         status:
           type: string
-          const: ok
+          const: healthy
+        applicationVersion:
+          type: string
+          pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+        apiVersion:
+          type: string
+          const: v1
+        startedAt:
+          type: string
+          format: date-time
+        uptimeSeconds:
+          type: integer
+          minimum: 0
     VersionResponse:
       type: object
       additionalProperties: false

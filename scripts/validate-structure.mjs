@@ -8,7 +8,16 @@ const requiredPaths = [
   "SECURITY.md",
   "CHANGELOG.md",
   "ROADMAP.md",
+  "CMakeLists.txt",
+  "config/PalCenterCompanion.ini",
+  "extension/dllmain.cpp",
+  "include/palcenter_companion/application.hpp",
+  "src/application.cpp",
+  "src/http_server.cpp",
+  "tests/companion_tests.cpp",
   "docs/ARCHITECTURE.md",
+  "docs/INSTALLATION.md",
+  "docs/research/FRAMEWORK-EVALUATION.md",
   "docs/API.md",
   "docs/CAPABILITIES.md",
   "docs/EVENT-MODEL.md",
@@ -46,6 +55,17 @@ for (const requiredText of [
 ]) {
   if (!apiContract.includes(requiredText)) {
     errors.push(`OpenAPI contract is missing: ${requiredText.trim()}`);
+  }
+}
+
+const cmakeProject = await readFile("CMakeLists.txt", "utf8");
+for (const requiredText of [
+  "project(PalCenterCompanion VERSION 0.1.0",
+  "PALCENTER_BUILD_UE4SS_EXTENSION",
+  "palcenter_companion_core",
+]) {
+  if (!cmakeProject.includes(requiredText)) {
+    errors.push(`CMake project is missing: ${requiredText}`);
   }
 }
 
