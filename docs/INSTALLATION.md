@@ -4,6 +4,8 @@
 
 The v0.1.0 implementation is an early development artifact. It exposes discovery information only and has not yet completed a published Palworld/UE4SS compatibility certification. It contains no gameplay hooks, player data, telemetry, or game events.
 
+Public CI verifies the platform-neutral runtime and the Windows DLL lifecycle contract. Because UE4SS production builds require authorized Unreal-derived `UEPseudo` sources, a release candidate must also be compiled against the exact authorized UE4SS revision and loaded in a disposable PalServer before distribution.
+
 ## Requirements
 
 - Palworld Dedicated Server running the Windows server binary

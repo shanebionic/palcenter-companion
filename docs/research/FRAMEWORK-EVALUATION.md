@@ -17,6 +17,7 @@ The recommendation is qualified:
 - PalSchema's current releases explicitly require Okaetsu's `experimental-palworld` UE4SS build; the fork's main branch was pushed on 2026-07-16.
 - Native Linux dedicated servers are not officially supported by UE4SS. Linux administrators need a Windows PalServer under Wine or Proton. This limitation must be prominent in every release.
 - Every Companion binary therefore needs a published and tested Palworld/UE4SS compatibility matrix.
+- UE4SS's C++ build depends on Unreal-derived `UEPseudo` sources that require an authorized Epic-linked GitHub account. Anonymous public CI cannot compile the production ABI. Public CI compiles the Windows DLL against test-only lifecycle declarations and verifies its exports; release builds must additionally compile against the authorized pinned UE4SS source and pass live PalServer validation.
 
 ## Options considered
 

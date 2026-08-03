@@ -74,21 +74,23 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-      - name: Check out pinned Palworld-compatible UE4SS source
-        shell: bash
-        run: |
-          git config --global url."https://github.com/".insteadOf git@github.com:
-          git clone https://github.com/Okaetsu/RE-UE4SS.git ue4ss
-          git -C ue4ss checkout c838a8acaade1a0f860bdf249f039e58f4e10088
-          git -C ue4ss submodule update --init --recursive --depth 1
-      - name: Configure UE4SS extension
+      - name: Configure Windows extension against the test lifecycle contract
         run: >-
           cmake -S . -B build-extension -G "Visual Studio 17 2022"
           -DPALCENTER_BUILD_TESTS=OFF
           -DPALCENTER_BUILD_UE4SS_EXTENSION=ON
-          -DPALCENTER_UE4SS_ROOT="${{ github.workspace }}/ue4ss"
+          -DPALCENTER_USE_UE4SS_TEST_STUBS=ON
       - name: Build UE4SS extension
-        run: cmake --build build-extension --config Game__Shipping__Win64 --target PalCenterCompanion
+        run: cmake --build build-extension --config Release --target PalCenterCompanion
+      - name: Verify UE4SS lifecycle exports
+        shell: pwsh
+        run: |
+          $exports = & dumpbin /exports build-extension/Release/PalCenterCompanion-contract-test.dll
+          foreach ($requiredExport in @("start_mod", "uninstall_mod")) {
+            if ($exports -notmatch "\b$requiredExport\b") {
+              throw "Missing required UE4SS export: $requiredExport"
+            }
+          }
 
   documentation:
     name: Documentation
