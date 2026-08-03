@@ -110,7 +110,7 @@ jobs:
           if ($LASTEXITCODE -eq 0) {
             throw "Production configuration unexpectedly accepted a missing authorized toolchain."
           }
-          if (($output -join "`n") -notmatch "authorized RE-UE4SS checkout") {
+          if (($output -join "`n") -notmatch "PALCENTER_UE4SS_ROOT") {
             throw "Production configuration did not provide the expected actionable error."
           }
       - name: Prevent packaging the contract-test DLL
