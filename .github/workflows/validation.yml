@@ -94,8 +94,9 @@ jobs:
             throw "Unable to locate dumpbin.exe"
           }
           $exports = & $dumpbin /exports build-extension/Release/PalCenterCompanion-contract-test.dll
+          $exportText = $exports -join "`n"
           foreach ($requiredExport in @("start_mod", "uninstall_mod")) {
-            if ($exports -notmatch "\b$requiredExport\b") {
+            if ($exportText -notmatch "\b$requiredExport\b") {
               throw "Missing required UE4SS export: $requiredExport"
             }
           }
