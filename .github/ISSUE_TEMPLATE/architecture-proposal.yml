@@ -1,0 +1,45 @@
+name: Architecture proposal
+description: Propose a contract, capability, or architectural change before implementation.
+title: "proposal: "
+labels:
+  - architecture
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Administrator problem
+      description: Explain the administrator need without prescribing implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Authoritative evidence
+      description: Explain what direct server evidence could support this capability and what remains uncertain.
+    validations:
+      required: true
+  - type: textarea
+    id: contract
+    attributes:
+      label: Proposed contract
+      description: Describe API, event, capability, versioning, and fallback implications.
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Security and privacy
+      description: Describe data exposure, authentication, resource impact, and failure isolation.
+    validations:
+      required: true
+  - type: checkboxes
+    id: principles
+    attributes:
+      label: Project principles
+      options:
+        - label: PalCenter continues to work without this capability.
+          required: true
+        - label: The proposal does not modify or replace the official REST API.
+          required: true
+        - label: The proposal requires no cloud service or external telemetry.
+          required: true

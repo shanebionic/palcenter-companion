@@ -1,0 +1,12 @@
+{
+  "eventId": "example-only-deterministic-id",
+  "timestamp": "2026-08-02T00:00:00.000Z",
+  "eventType": "example.contract_event",
+  "player": null,
+  "coordinateSpace": "unknown",
+  "confidence": "unknown",
+  "metadata": {},
+  "evidence": {
+    "source": "documentation-example"
+  }
+}

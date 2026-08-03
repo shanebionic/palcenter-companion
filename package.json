@@ -1,0 +1,17 @@
+{
+  "name": "palcenter-companion",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Architecture and contracts for the optional PalCenter Companion server-side extension.",
+  "license": "MIT",
+  "scripts": {
+    "format:check": "node scripts/check-format.mjs",
+    "lint": "node scripts/validate-content.mjs",
+    "build": "node scripts/validate-structure.mjs",
+    "docs:check": "node scripts/validate-docs.mjs",
+    "validate": "npm run format:check && npm run lint && npm run build && npm run docs:check"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

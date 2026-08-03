@@ -1,0 +1,48 @@
+name: Bug report
+description: Report reproducible incorrect behavior in PalCenter Companion.
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Do not include server credentials, private player information, or real
+        production telemetry. Report security issues through a private advisory.
+  - type: input
+    id: version
+    attributes:
+      label: Companion version
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the observed and expected behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Provide a minimal, sanitized reproduction.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include relevant OS, Palworld server build, and extension framework versions.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed credentials and private administrator or player data.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true
