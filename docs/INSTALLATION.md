@@ -2,7 +2,7 @@
 
 ## Compatibility status
 
-The v0.1.0 implementation exposes discovery information only. Its production release candidate targets Palworld Dedicated Server Steam build `24181105` and Okaetsu RE-UE4SS commit `c838a8acaade1a0f860bdf249f039e58f4e10088`. Live certification against that combination is still pending; do not distribute the DLL until [Live PalServer UAT](LIVE-PALSERVER-UAT.md) passes.
+The v0.1.0 implementation exposes discovery information only. Its production release candidate targets Palworld Dedicated Server Steam build `24466863` (game version `v1.0.2.101103`) and Okaetsu RE-UE4SS commit `c838a8acaade1a0f860bdf249f039e58f4e10088`. Initial live validation is recorded in [PalServer build 24466863 validation](validation/PALSERVER-24466863.md); the remaining gates are tracked in [Live PalServer UAT](LIVE-PALSERVER-UAT.md).
 
 Public CI builds `PalCenterCompanion-contract-test.dll` against test declarations. That DLL is not a production artifact and must not be installed. Authorized contributors build the real `main.dll` using [Production Toolchain](TOOLCHAIN.md).
 
@@ -155,7 +155,9 @@ Expected normal unload:
 [PalCenterCompanion] Companion stopped
 ```
 
-The listener binds before a dedicated worker thread enters its request loop. It does not run the HTTP loop on Unreal's game thread. Application lifecycle operations are mutex-protected; running state and bound port are atomic; handlers use server-owned immutable route state; shutdown calls `stop()`, waits for the listener thread and active server workers, and only then destroys listener state. A duplicate Unreal initialization callback is ignored. Bind failure degrades safely without starting a worker.
+The listener binds before a dedicated worker thread enters its request loop. It does not run the HTTP loop on Unreal's game thread. Application lifecycle operations are mutex-protected; running state and bound port are atomic; handlers use server-owned immutable route state; explicit `uninstall_mod` calls stop and join the listener before destroying state. A duplicate Unreal initialization callback is ignored. Bind failure degrades safely without starting a worker.
+
+The pinned UE4SS revision does not call `uninstall_mods()` from its process-detach cleanup path. A normal PalServer shutdown therefore releases the listener when the process exits, but does not produce the Companion's `Companion stopped` message. Do not add blocking cleanup to Windows `DllMain`; that would run under the loader lock. This limitation remains a release gate until an upstream-supported pre-exit/unload lifecycle is available or the project approves a safe alternative.
 
 ## PalCenter detection
 

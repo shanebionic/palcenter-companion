@@ -6,6 +6,7 @@ PalCenter Companion v0.1.0 includes an embedded discovery runtime and UE4SS life
 - [Installation and startup](INSTALLATION.md)
 - [Production toolchain](TOOLCHAIN.md)
 - [Live PalServer UAT](LIVE-PALSERVER-UAT.md)
+- [PalServer build 24466863 validation](validation/PALSERVER-24466863.md)
 - [Framework evaluation](research/FRAMEWORK-EVALUATION.md)
 - [API](API.md)
 - [Capabilities](CAPABILITIES.md)

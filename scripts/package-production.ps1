@@ -9,7 +9,11 @@ param(
 $ErrorActionPreference = "Stop"
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $resolvedBuild = (Resolve-Path -LiteralPath $BuildDirectory).Path
-$resolvedOutput = [System.IO.Path]::GetFullPath((Join-Path $repositoryRoot $OutputDirectory))
+$resolvedOutput = if ([System.IO.Path]::IsPathRooted($OutputDirectory)) {
+  [System.IO.Path]::GetFullPath($OutputDirectory)
+} else {
+  [System.IO.Path]::GetFullPath((Join-Path $repositoryRoot $OutputDirectory))
+}
 $stagingRoot = Join-Path $resolvedOutput "stage"
 $packageRoot = Join-Path $stagingRoot "PalCenterCompanion"
 $archivePath = Join-Path $resolvedOutput "PalCenterCompanion-0.1.0-win64.zip"

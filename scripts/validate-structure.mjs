@@ -23,6 +23,7 @@ const requiredPaths = [
   "docs/INSTALLATION.md",
   "docs/TOOLCHAIN.md",
   "docs/LIVE-PALSERVER-UAT.md",
+  "docs/validation/PALSERVER-24466863.md",
   "docs/research/FRAMEWORK-EVALUATION.md",
   "docs/API.md",
   "docs/CAPABILITIES.md",

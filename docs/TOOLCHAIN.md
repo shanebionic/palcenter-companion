@@ -4,14 +4,16 @@ PalCenter Companion production binaries are reproducible only when built and tes
 
 | Component | Pinned value |
 | --- | --- |
-| Palworld Dedicated Server | Steam build `24181105` (live validation pending) |
+| Palworld Dedicated Server | Steam build `24466863`, game version `v1.0.2.101103` |
 | RE-UE4SS repository | `https://github.com/Okaetsu/RE-UE4SS.git` |
 | RE-UE4SS branch/revision | `main` at `c838a8acaade1a0f860bdf249f039e58f4e10088` |
 | Compiler | Visual Studio 2022 17.14, MSVC 19.44 (`MSVC_VERSION=1944`), x64 |
 | Windows SDK | `10.0.26100.0` |
+| Rust | `rustc 1.88.0` (`x86_64-pc-windows-msvc`) |
 | CMake generator | `Visual Studio 17 2022`, platform `x64` |
+| UE4SS build configuration | `Game__Shipping__Win64` |
 | C++ runtime | Dynamic multithreaded runtime (`/MD` for Release) |
-| CMake | 3.22 or newer, using the generator above |
+| CMake | `3.31.6-msvc6`, using the generator above |
 | cpp-httplib | v0.52.0, commit `095a5c1caf9e467ff840ee2ffd19be1a7852203b` |
 
 Because Release uses `/MD`, the PalServer host needs the Microsoft Visual C++ 2015–2022 x64 Redistributable. A normal current Palworld/UE4SS installation commonly already has it, but the package does not redistribute it.
@@ -36,7 +38,14 @@ From a Visual Studio 2022 Developer PowerShell:
 .\scripts\build-production.ps1 -Ue4ssRoot C:\src\RE-UE4SS
 ```
 
-The script configures `PALCENTER_UE4SS_BUILD_MODE=PRODUCTION`, builds the real `main.dll`, verifies `start_mod` and `uninstall_mod`, stages the installable directory, validates ZIP contents, and writes SHA-256 values for the DLL and ZIP.
+Use a short absolute build path when the repository itself is deeply nested; Cargo and the Windows linker can otherwise exceed path limits:
+
+```powershell
+.\scripts\build-production.ps1 -Ue4ssRoot C:\src\RE-UE4SS `
+  -BuildDirectory C:\pc-companion-build
+```
+
+The script configures `PALCENTER_UE4SS_BUILD_MODE=PRODUCTION`, builds the real `main.dll` with UE4SS's `Game__Shipping__Win64` configuration, verifies `start_mod` and `uninstall_mod`, stages the installable directory, validates ZIP contents, and writes SHA-256 values for the DLL and ZIP.
 
 The contract-only CI configuration is deliberately different:
 
