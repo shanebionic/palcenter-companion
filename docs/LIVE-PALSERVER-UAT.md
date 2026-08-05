@@ -1,6 +1,6 @@
 # Live PalServer UAT
 
-Complete this checklist against a disposable or backed-up server before publishing v0.3.1. Record sanitized evidence with timestamps. Do not mark a row passed without live evidence.
+Complete this checklist against a disposable or backed-up server before publishing v0.3.2. Record sanitized evidence with timestamps. Do not mark a row passed without live evidence.
 
 ## Test record
 
@@ -69,6 +69,25 @@ Invoke-RestMethod http://127.0.0.1:8213/palcenter/v1/activity -Headers $headers
 - [ ] Repeat final live-client UAT with the release-candidate artifact and
   record its hashes before publishing.
 
+## v0.3.2 map-teleport runtime gate
+
+- [x] Start the disposable PalServer with all administrator teleport gates
+  enabled and no player joined.
+- [x] Record the initial map action as unsupported with
+  `safe_placement_utility_unavailable` while `Default__PalUtility` is absent.
+- [x] Confirm the lifecycle probe retries after world initialization and the
+  utility object, collision function/signature, floor function/signature, and
+  ocean function/signature all become ready.
+- [x] Confirm the authenticated capability then advertises
+  `teleportPlayerToLocation: true` with a `null` diagnostic before player join.
+- [x] Confirm the production server remains healthy and the two player-relative
+  teleport capabilities remain supported throughout the probe transition.
+- [ ] Join with the release-candidate DLL and perform the nearby safe
+  self-teleport in [Admin teleport UAT](ADMIN-ACTIONS-UAT.md).
+- [ ] Record resolved X/Y/Z, safe floor placement, connection and replication
+  behavior, and one water or unsafe failure after the user completes the client
+  steps. No client-dependent result is claimed by the server-only checks above.
+
 ## Configuration matrix
 
 For each case, restart PalServer, capture the relevant log, verify expected listener state, and confirm PalServer remains playable.
@@ -95,7 +114,7 @@ For each case, restart PalServer, capture the relevant log, verify expected list
 Startup should include:
 
 ```text
-[PalCenterCompanion] PalCenter Companion v0.3.1
+[PalCenterCompanion] PalCenter Companion v0.3.2
 [PalCenterCompanion] Companion initialized
 [PalCenterCompanion] Listening on 127.0.0.1:8213
 [PalCenterCompanion] API Version v1
@@ -107,4 +126,6 @@ Normal shutdown should include:
 [PalCenterCompanion] Companion stopped
 ```
 
-Attach sanitized startup, playable-state, compatibility, shutdown, and restart excerpts to PR #2. Never include server passwords, public addresses, tokens, or unrelated player information.
+Attach sanitized startup, playable-state, compatibility, shutdown, and restart
+excerpts to the Draft PR. Never include server passwords, public addresses,
+tokens, or unrelated player information.

@@ -6,7 +6,7 @@ info:
     name: MIT
     identifier: MIT
   description: >-
-    Contract for the optional PalCenter Companion listener. Version 0.3.1
+    Contract for the optional PalCenter Companion listener. Version 0.3.2
     resolves safe runtime height for verified Palpagos map teleports.
 servers:
   - url: /palcenter/v1
@@ -183,7 +183,7 @@ components:
           type: string
           pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
           examples:
-            - 0.3.1
+            - 0.3.2
         apiVersion:
           type: string
           const: v1
@@ -225,6 +225,15 @@ components:
           type: boolean
         capabilityVersion:
           type: string
+        diagnostics:
+          type: object
+          description: >-
+            Additive, non-secret reason codes for currently unavailable
+            sub-capabilities. Consumers must ignore unknown codes.
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: "null"
       additionalProperties: true
     ActivityResponse:
       type: object

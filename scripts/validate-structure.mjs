@@ -52,8 +52,8 @@ const packageMetadata = JSON.parse(await readFile("package.json", "utf8"));
 if (packageMetadata.name !== "palcenter-companion") {
   errors.push("package.json must identify palcenter-companion");
 }
-if (packageMetadata.version !== "0.3.1") {
-  errors.push("package.json must match the v0.3.1 development milestone");
+if (packageMetadata.version !== "0.3.2") {
+  errors.push("package.json must match the v0.3.2 development milestone");
 }
 
 const apiContract = await readFile("api/openapi.yaml", "utf8");
@@ -73,7 +73,7 @@ for (const requiredText of [
 
 const cmakeProject = await readFile("CMakeLists.txt", "utf8");
 for (const requiredText of [
-  "project(PalCenterCompanion VERSION 0.3.1",
+  "project(PalCenterCompanion VERSION 0.3.2",
   "PALCENTER_UE4SS_BUILD_MODE",
   "OUTPUT_NAME \"main\"",
   "palcenter_companion_core",

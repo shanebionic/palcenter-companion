@@ -2,7 +2,7 @@
 
 ## Status
 
-PalCenter Companion v0.3.1 produces bounded player join, leave, session-start,
+PalCenter Companion v0.3.2 produces bounded player join, leave, session-start,
 and session-end activity. Other event families remain future work.
 
 The Companion is intended to be an authoritative event source. Events should describe what the Palworld server observed rather than require PalCenter to reconstruct behavior from positional telemetry.

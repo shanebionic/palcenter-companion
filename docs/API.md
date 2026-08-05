@@ -2,11 +2,11 @@
 
 ## Status
 
-The discovery endpoints and bounded player Activity endpoint are implemented by the embedded v0.3.1 development listener. No WebSocket API is implemented.
+The discovery endpoints and bounded player Activity endpoint are implemented by the embedded v0.3.2 development listener. No WebSocket API is implemented.
 
 The API version is independent from the Companion application version:
 
-- Application version: `0.3.1`
+- Application version: `0.3.2`
 - API version: `v1`
 - Base path: `/palcenter/v1/`
 
@@ -47,7 +47,7 @@ Example response:
 ```json
 {
   "application": "palcenter-companion",
-  "applicationVersion": "0.3.1",
+  "applicationVersion": "0.3.2",
   "apiVersion": "v1",
   "buildCommit": "abc1234",
   "buildBranch": "main",
@@ -82,10 +82,25 @@ Requires `Authorization: Bearer <token>`.
   "schemaVersion": "1",
   "categories": {
     "events": { "supported": false, "capabilityVersion": "1" },
-    "health": { "supported": true, "capabilityVersion": "1" }
+    "health": { "supported": true, "capabilityVersion": "1" },
+    "adminActions": {
+      "supported": true,
+      "capabilityVersion": "2",
+      "actions": { "teleportPlayerToLocation": false },
+      "diagnostics": {
+        "teleportPlayerToLocation": "safe_placement_runtime_initializing"
+      }
+    }
   }
 }
 ```
+
+The optional `diagnostics` map contains concise non-secret reason codes for
+unavailable actions. It is additive: consumers must ignore unknown codes and
+continue to gate behavior exclusively on the corresponding Boolean action.
+During startup, map teleport can transition from `false` to `true` after the
+Palworld world utility object becomes available, so consumers may refresh
+capabilities after server initialization.
 
 See [capability negotiation](CAPABILITIES.md) for consumer behavior.
 

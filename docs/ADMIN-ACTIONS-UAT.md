@@ -19,6 +19,15 @@ Restart PalServer. Keep the Companion listener on loopback. Read the current
 player IDs from authenticated `GET /palcenter/v1/locations`; use the 32-digit
 `playerId` for the administrator character and target character.
 
+Before a player joins, query authenticated `GET /palcenter/v1/capabilities` at
+initial Companion startup and again after the Palworld world reaches its ready
+state. It is valid for `teleportPlayerToLocation` to begin as `false` with a
+concise initialization diagnostic, but it must become `true` and its diagnostic
+must become `null` when every reflected runtime prerequisite is available. The
+server log must show collision function/signature, Palworld utility object,
+floor function/signature, and ocean function/signature separately. Do not
+continue to a map teleport if the action remains false.
+
 ## Exercise
 
 Send authenticated JSON requests to these endpoints. Generate a new unique
@@ -57,6 +66,12 @@ character.
 Change `coordinateSpace` to `world_tree` and then `special_area`; both must be
 rejected. Move either character into a dungeon or other special area and confirm
 player-to-player teleport is rejected.
+
+For the release-candidate client test, first join and remain on open Palpagos
+terrain. Refresh capabilities, perform one nearby self-teleport, and record the
+resolved X/Y/Z, floor placement, connection state, and replication seen by the
+client. Then test one known water or unsafe destination and confirm it fails
+closed without moving or disconnecting the player.
 
 ## Audit and disable
 

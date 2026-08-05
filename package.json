@@ -1,6 +1,6 @@
 {
   "name": "palcenter-companion",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "description": "Optional in-process server extension that augments PalCenter with authoritative Palworld information.",
   "license": "MIT",

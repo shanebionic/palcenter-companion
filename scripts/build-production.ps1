@@ -31,8 +31,8 @@ if ($LASTEXITCODE -ne 0 -or $actualCommit -ne $expectedCommit) {
 }
 
 $rustVersion = (& rustc --version).Trim()
-if ($LASTEXITCODE -ne 0 -or $rustVersion -notmatch '^rustc 1\.88\.0 ') {
-  throw "Production mode requires rustc 1.88.0; found '$rustVersion'."
+if ($LASTEXITCODE -ne 0 -or $rustVersion -notmatch '^rustc 1\.97\.0-nightly ') {
+  throw "Production mode requires rustc 1.97.0-nightly; found '$rustVersion'."
 }
 
 $buildCommit = (& git -C $repositoryRoot rev-parse --short=12 HEAD).Trim()
