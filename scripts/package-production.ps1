@@ -52,6 +52,7 @@ Copy-Item -LiteralPath (Join-Path $repositoryRoot "config/PalCenterCompanion.ini
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "extension/enabled.txt") -Destination (Join-Path $packageRoot "enabled.txt")
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "packaging/README.txt") -Destination (Join-Path $packageRoot "README.txt")
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "packaging/INSTALL.md") -Destination (Join-Path $packageRoot "INSTALL.md")
+Copy-Item -LiteralPath (Join-Path $repositoryRoot "docs/ADMIN-ACTIONS-UAT.md") -Destination (Join-Path $packageRoot "ADMIN-ACTIONS-UAT.md")
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "packaging/LICENSES/THIRD-PARTY-NOTICES.txt") -Destination (Join-Path $packageRoot "LICENSES/THIRD-PARTY-NOTICES.txt")
 
 $expectedFiles = @(
@@ -60,6 +61,7 @@ $expectedFiles = @(
   "enabled.txt",
   "README.txt",
   "INSTALL.md",
+  "ADMIN-ACTIONS-UAT.md",
   "LICENSES/THIRD-PARTY-NOTICES.txt"
 )
 foreach ($relativePath in $expectedFiles) {

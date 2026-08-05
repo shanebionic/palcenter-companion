@@ -9,7 +9,9 @@ keeps players inside Palworld stage instances off the wrong map. It does not
 guess whether a special area is a dungeon, tower, arena, or the World Tree.
 
 > [!IMPORTANT]
-> Version 0.3.0 is in development. It helps PalCenter show exactly when players join and leave and how long they were online. PalCenter still works normally when the Companion is not installed.
+> Version 0.3.0 is in development. It reports player activity and locations and
+> adds default-off, authenticated teleport actions for controlled UAT. PalCenter
+> still works normally when the Companion is not installed.
 
 ## Why it exists
 
@@ -45,6 +47,7 @@ Application version `0.3.0` provides:
 - a UE4SS C++ extension lifecycle that starts and stops with PalServer;
 - local INI configuration and UE4SS-integrated startup logging;
 - capability negotiation with player Activity support;
+- independently negotiated, default-off administrator teleport actions;
 - future event, coordinate-space, and live-stream designs;
 - a platform-neutral core with automated endpoint and lifecycle tests.
 
@@ -80,7 +83,12 @@ Detailed requirements, folder layout, configuration, security boundaries, and st
 
 ## Long-term vision
 
-PalCenter Companion is an authoritative event source, not a collection of helper endpoints. Future releases may expose world events, coordinate spaces, guilds, bases, structures, breeding, bosses, captures, performance information, moderation actions, and other administration capabilities. Each capability will be explicitly negotiated, versioned, local-first, and designed to degrade gracefully when unavailable.
+PalCenter Companion is primarily an authoritative server evidence source and can
+also expose narrowly gated administrator actions. Future releases may expose
+world events, guilds, bases, structures, breeding, bosses, captures,
+performance information, moderation actions, and other administration
+capabilities. Each capability is explicitly negotiated, versioned, local-first,
+and designed to degrade gracefully when unavailable.
 
 PalCenter's intelligence engine should prefer authoritative Companion events over heuristic inference. When the Companion is absent or a capability is unavailable, PalCenter should continue using the official REST API and its existing inference behavior.
 

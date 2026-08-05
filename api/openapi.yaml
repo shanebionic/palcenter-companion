@@ -2,6 +2,9 @@ openapi: 3.1.0
 info:
   title: PalCenter Companion API
   version: 1.0.0
+  license:
+    name: MIT
+    identifier: MIT
   description: >-
     Contract for the optional PalCenter Companion listener. Version 0.3.0 adds
     bounded player activity from server hooks.
@@ -10,6 +13,7 @@ servers:
 paths:
   /health:
     get:
+      security: []
       operationId: getHealth
       summary: Check Companion availability
       responses:
@@ -74,6 +78,63 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+  /admin-actions/teleport-admin-to-player:
+    post:
+      security: [{ bearerAuth: [] }]
+      operationId: teleportAdminToPlayer
+      summary: Teleport an administrator character to an online player
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlayerTeleportRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/AdminActionCompleted" }
+        "400": { $ref: "#/components/responses/AdminActionRejected" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/AdminActionRejected" }
+        "409": { $ref: "#/components/responses/AdminActionRejected" }
+        "422": { $ref: "#/components/responses/AdminActionRejected" }
+        "501": { $ref: "#/components/responses/AdminActionRejected" }
+        "503": { $ref: "#/components/responses/AdminActionRejected" }
+  /admin-actions/teleport-player-to-admin:
+    post:
+      security: [{ bearerAuth: [] }]
+      operationId: teleportPlayerToAdmin
+      summary: Teleport an online player to an administrator character
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlayerTeleportRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/AdminActionCompleted" }
+        "400": { $ref: "#/components/responses/AdminActionRejected" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/AdminActionRejected" }
+        "409": { $ref: "#/components/responses/AdminActionRejected" }
+        "422": { $ref: "#/components/responses/AdminActionRejected" }
+        "501": { $ref: "#/components/responses/AdminActionRejected" }
+        "503": { $ref: "#/components/responses/AdminActionRejected" }
+  /admin-actions/teleport-player-to-location:
+    post:
+      security: [{ bearerAuth: [] }]
+      operationId: teleportPlayerToLocation
+      summary: Teleport an online player to a verified Palpagos location
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LocationTeleportRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/AdminActionCompleted" }
+        "400": { $ref: "#/components/responses/AdminActionRejected" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/AdminActionRejected" }
+        "409": { $ref: "#/components/responses/AdminActionRejected" }
+        "422": { $ref: "#/components/responses/AdminActionRejected" }
+        "501": { $ref: "#/components/responses/AdminActionRejected" }
+        "503": { $ref: "#/components/responses/AdminActionRejected" }
 components:
   securitySchemes:
     bearerAuth:
@@ -86,6 +147,16 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
+    AdminActionCompleted:
+      description: The teleport completed once on the game thread.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/AdminActionResponse" }
+    AdminActionRejected:
+      description: The teleport was not executed.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/AdminActionResponse" }
   schemas:
     HealthResponse:
       type: object
@@ -202,3 +273,79 @@ components:
       properties:
         error: { type: string }
         message: { type: string }
+    PlayerTeleportRequest:
+      type: object
+      additionalProperties: false
+      required: [requestId, administratorPlayerId, targetPlayerId]
+      properties:
+        requestId:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: "^[A-Za-z0-9._:-]+$"
+        administratorPlayerId: { $ref: "#/components/schemas/StablePlayerId" }
+        targetPlayerId: { $ref: "#/components/schemas/StablePlayerId" }
+    LocationTeleportRequest:
+      type: object
+      additionalProperties: false
+      required: [requestId, administratorPlayerId, targetPlayerId, destination]
+      properties:
+        requestId:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: "^[A-Za-z0-9._:-]+$"
+        administratorPlayerId: { $ref: "#/components/schemas/StablePlayerId" }
+        targetPlayerId: { $ref: "#/components/schemas/StablePlayerId" }
+        destination:
+          type: object
+          additionalProperties: false
+          required: [coordinateSpace, verification, x, y, z]
+          properties:
+            coordinateSpace: { type: string, const: palpagos }
+            verification: { type: string, const: palpagos_map }
+            x: { type: number, minimum: -999940, maximum: 447900 }
+            y: { type: number, minimum: -738920, maximum: 708920 }
+            z: { type: number, minimum: -200000, maximum: 1000000 }
+    StablePlayerId:
+      type: string
+      pattern: "^[0-9A-Fa-f]{32}$"
+    AdminActionResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - requestId
+        - action
+        - status
+        - replayed
+        - error
+        - message
+        - sourceCoordinateSpace
+        - destinationCoordinateSpace
+        - resolvedDestination
+      properties:
+        schemaVersion: { type: string, const: "1" }
+        requestId: { type: string }
+        action:
+          type: string
+          enum:
+            - teleportAdminToPlayer
+            - teleportPlayerToAdmin
+            - teleportPlayerToLocation
+        status: { type: string, enum: [succeeded, rejected] }
+        replayed: { type: boolean }
+        error: { type: [string, "null"] }
+        message: { type: string }
+        sourceCoordinateSpace: { type: [string, "null"] }
+        destinationCoordinateSpace: { type: [string, "null"] }
+        resolvedDestination:
+          oneOf:
+            - type: "null"
+            - type: object
+              additionalProperties: false
+              required: [x, y, z]
+              properties:
+                x: { type: number }
+                y: { type: number }
+                z: { type: number }

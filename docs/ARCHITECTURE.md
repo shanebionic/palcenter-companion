@@ -35,6 +35,12 @@ The UE4SS adapter, application, configuration loader, and HTTP listener are impl
 
 Routes are registered before the worker starts and use only listener-owned immutable API metadata plus atomic/lifecycle timestamps. Shutdown first requests the HTTP server to stop, then joins the listener thread before destroying either the server or handler state. This ordering prevents handlers from observing a destroyed plugin instance. A bind failure creates no worker and leaves PalServer running without the Companion listener.
 
+Privileged admin-action handlers are the exception to read-only route data: the
+HTTP worker validates and queues immutable requests, then waits for the existing
+UE4SS engine-tick callback to claim and execute each mutation on the game thread.
+Shutdown cancels unclaimed work before joining the listener. The queue never
+retries an action. See [Admin-action implementation](ADMIN-ACTIONS.md).
+
 ## Future internal layers
 
 ```text

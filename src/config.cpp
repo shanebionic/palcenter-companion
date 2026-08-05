@@ -27,7 +27,7 @@ std::string lowercase(std::string value) {
   return value;
 }
 
-bool parse_bool(const std::string& value) {
+bool parse_bool(const std::string& value, const std::string_view key) {
   const auto normalized = lowercase(trim(value));
   if (normalized == "true" || normalized == "1" || normalized == "yes") {
     return true;
@@ -35,7 +35,7 @@ bool parse_bool(const std::string& value) {
   if (normalized == "false" || normalized == "0" || normalized == "no") {
     return false;
   }
-  throw std::runtime_error("Enabled must be true or false");
+  throw std::runtime_error(std::string(key) + " must be true or false");
 }
 
 LogLevel parse_log_level(const std::string& value) {
@@ -89,7 +89,7 @@ CompanionConfig load_config(const std::filesystem::path& path) {
     const auto value = trim(cleaned.substr(separator + 1));
 
     if (key == "enabled") {
-      config.enabled = parse_bool(value);
+      config.enabled = parse_bool(value, "Enabled");
     } else if (key == "bindaddress") {
       if (value.empty()) {
         throw std::runtime_error("BindAddress cannot be empty");
@@ -104,6 +104,17 @@ CompanionConfig load_config(const std::filesystem::path& path) {
       config.port = static_cast<std::uint16_t>(parsed);
     } else if (key == "loglevel") {
       config.log_level = parse_log_level(value);
+    } else if (key == "adminactionsenabled") {
+      config.admin_actions_enabled = parse_bool(value, "AdminActionsEnabled");
+    } else if (key == "teleportadmintoplayerenabled") {
+      config.teleport_admin_to_player_enabled =
+          parse_bool(value, "TeleportAdminToPlayerEnabled");
+    } else if (key == "teleportplayertoadminenabled") {
+      config.teleport_player_to_admin_enabled =
+          parse_bool(value, "TeleportPlayerToAdminEnabled");
+    } else if (key == "teleportplayertolocationenabled") {
+      config.teleport_player_to_location_enabled =
+          parse_bool(value, "TeleportPlayerToLocationEnabled");
     }
   }
 

@@ -72,6 +72,10 @@ Enabled=true
 BindAddress=127.0.0.1
 Port=8213
 LogLevel=Information
+AdminActionsEnabled=false
+TeleportAdminToPlayerEnabled=false
+TeleportPlayerToAdminEnabled=false
+TeleportPlayerToLocationEnabled=false
 ```
 
 | Setting | Default | Meaning |
@@ -80,6 +84,15 @@ LogLevel=Information
 | `BindAddress` | `127.0.0.1` | Interface used by the listener. |
 | `Port` | `8213` | Companion API port, separate from the official REST API. |
 | `LogLevel` | `Information` | Minimum level: `Debug`, `Information`, `Warning`, or `Error`. |
+| `AdminActionsEnabled` | `false` | Global privileged-action gate. |
+| `TeleportAdminToPlayerEnabled` | `false` | Allows the administrator character to move to an online player. |
+| `TeleportPlayerToAdminEnabled` | `false` | Allows an online player to move to the administrator character. |
+| `TeleportPlayerToLocationEnabled` | `false` | Allows an online player to move to a verified Palpagos location. |
+
+All four action settings fail closed. An individual action is available only
+when the global gate and its matching gate are both true and runtime capability
+probing succeeds. Follow [Admin teleport UAT](ADMIN-ACTIONS-UAT.md) on a private
+test server before enabling them.
 
 Invalid or missing configuration and listener startup failures produce an error and leave the Companion unavailable. They do not intentionally terminate PalServer. Automated tests cover defaults, disabled mode, alternate ports, malformed and missing files, invalid addresses, occupied ports, every log-level value, non-loopback warnings, and repeated listener cycles. Live PalServer results remain part of the UAT gate.
 

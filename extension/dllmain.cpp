@@ -6,6 +6,7 @@
 #include <Windows.h>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <filesystem>
 #include <iomanip>
@@ -21,6 +22,8 @@
 #ifdef PALCENTER_PRODUCTION_HOOKS
 #include <Helpers/String.hpp>
 #include <Unreal/AActor.hpp>
+#include <Unreal/BPMacros.hpp>
+#include <Unreal/CoreUObject/UObject/Class.hpp>
 #include <Unreal/FString.hpp>
 #include <Unreal/Hooks/Hooks.hpp>
 #include <Unreal/UObject.hpp>
@@ -73,7 +76,7 @@ void log_to_ue4ss(const LogLevel level, const std::string_view message) {
 
 }  // namespace
 
-class PalCenterCompanionMod final : public RC::CppUserModBase {
+class PalCenterCompanionMod final : public RC::CppUserModBase, public AdminActionExecutor {
  public:
   PalCenterCompanionMod() {
     ModName = STR("PalCenter Companion");
@@ -92,7 +95,9 @@ class PalCenterCompanionMod final : public RC::CppUserModBase {
   auto on_unreal_init() -> void override {
     try {
       if (!application_) {
-        application_ = std::make_unique<CompanionApplication>(log_to_ue4ss);
+        auto executor = std::shared_ptr<AdminActionExecutor>(this, [](AdminActionExecutor*) {});
+        application_ =
+            std::make_unique<CompanionApplication>(log_to_ue4ss, std::move(executor));
       }
       const auto config_path = companion_directory() / "config" / "PalCenterCompanion.ini";
       static_cast<void>(application_->initialize(config_path));
@@ -107,11 +112,85 @@ class PalCenterCompanionMod final : public RC::CppUserModBase {
     }
   }
 
+  [[nodiscard]] bool supports(const AdminActionKind action) const noexcept override {
+#ifdef PALCENTER_PRODUCTION_HOOKS
+    if (action == AdminActionKind::teleport_player_to_location) {
+      return location_teleport_supported_;
+    }
+    return player_teleport_supported_;
+#else
+    static_cast<void>(action);
+    return false;
+#endif
+  }
+
+  AdminActionExecutionResult execute(const AdminActionRequest& request) noexcept override {
+#ifdef PALCENTER_PRODUCTION_HOOKS
+    try {
+      return execute_teleport(request);
+    } catch (const std::exception&) {
+      return {false, "execution_failed", "The game rejected the teleport.", {}, {},
+              std::nullopt};
+    } catch (...) {
+      return {false, "execution_failed", "The game rejected the teleport.", {}, {},
+              std::nullopt};
+    }
+#else
+    static_cast<void>(request);
+    return {false, "action_not_supported",
+            "This build cannot execute gameplay actions.", {}, {}, std::nullopt};
+#endif
+  }
+
  private:
 #ifdef PALCENTER_PRODUCTION_HOOKS
   struct ControllerParameter { RC::Unreal::UObject* controller; };
   struct StageInstanceId { RC::Unreal::FGuid internal_id; bool valid; };
   struct ActivePlayer { RC::Unreal::UObject* controller; PlayerIdentity identity; };
+
+  static bool resolve_safe_floor(RC::Unreal::AActor* TargetActor,
+                                 const RC::Unreal::FVector InLocation,
+                                 RC::Unreal::FVector& OutLocation) {
+    using namespace RC::Unreal;
+    const float UpOffset = 0.0F;
+    const bool ShortRayLength = false;
+    const bool PriorityWater = false;
+    const bool onlyCheckWater = false;
+    UE_BEGIN_NATIVE_FUNCTION_BODY(
+        "/Script/Pal.PalUtility:CanAdjustActorToFloorAtLocation")
+    UE_SET_STATIC_SELF("/Script/Pal.Default__PalUtility")
+    if (!StaticSelf) throw std::runtime_error("PalUtility is unavailable");
+    UE_COPY_PROPERTY(TargetActor, RC::Unreal::AActor*)
+    UE_COPY_STRUCT_PROPERTY_BEGIN(InLocation)
+    UE_COPY_VECTOR(InLocation, InLocation)
+    UE_COPY_PROPERTY(UpOffset, float)
+    UE_COPY_PROPERTY(ShortRayLength, bool)
+    UE_COPY_PROPERTY(PriorityWater, bool)
+    UE_COPY_PROPERTY(onlyCheckWater, bool)
+    UE_CALL_STATIC_FUNCTION()
+    UE_COPY_OUT_PROPERTY(OutLocation, RC::Unreal::FVector)
+    UE_RETURN_PROPERTY(bool)
+  }
+
+  static bool is_below_ocean_plane(RC::Unreal::UObject* WorldContextObject,
+                                   const RC::Unreal::FVector Location) {
+    using namespace RC::Unreal;
+    UE_BEGIN_NATIVE_FUNCTION_BODY("/Script/Pal.PalUtility:IsUnderWorldOceanPlaneZ")
+    UE_SET_STATIC_SELF("/Script/Pal.Default__PalUtility")
+    if (!StaticSelf) throw std::runtime_error("PalUtility is unavailable");
+    UE_COPY_PROPERTY(WorldContextObject, RC::Unreal::UObject*)
+    UE_COPY_STRUCT_PROPERTY_BEGIN(Location)
+    UE_COPY_VECTOR(Location, Location)
+    UE_CALL_STATIC_FUNCTION()
+    UE_RETURN_PROPERTY(bool)
+  }
+
+  static RC::Unreal::AActor* pawn_actor(RC::Unreal::UObject* controller) {
+    if (!controller) return nullptr;
+    const auto pawn = controller->GetValuePtrByPropertyNameInChain<RC::Unreal::UObject*>(
+        STR("Pawn"));
+    return pawn && *pawn ? RC::Unreal::Cast<RC::Unreal::AActor>(*pawn) : nullptr;
+  }
 
   static std::string player_id_from_guid(const RC::Unreal::FGuid& guid) {
     std::ostringstream value;
@@ -179,6 +258,124 @@ class PalCenterCompanionMod final : public RC::CppUserModBase {
     return result;
   }
 
+  std::pair<ActivePlayer*, std::string> find_online_player(const std::string_view player_id) {
+    ActivePlayer* match = nullptr;
+    std::size_t matches = 0;
+    for (auto& player : active_players_) {
+      if (player.identity.player_id == player_id) {
+        match = &player;
+        ++matches;
+      }
+    }
+    if (matches == 0) return {nullptr, "player_offline"};
+    if (matches > 1) return {nullptr, "player_ambiguous"};
+    return {match, {}};
+  }
+
+  static AdminActionExecutionResult player_failure(const std::string_view role,
+                                                    const std::string& error) {
+    if (error == "player_ambiguous") {
+      return {false, error,
+              "The " + std::string(role) + " player ID is ambiguous in the live game state.",
+              {}, {}, std::nullopt};
+    }
+    return {false, "player_offline",
+            "The " + std::string(role) + " character is not online.", {}, {},
+            std::nullopt};
+  }
+
+  AdminActionExecutionResult execute_teleport(const AdminActionRequest& request) {
+    const auto [administrator, administrator_error] =
+        find_online_player(request.administrator_player_id);
+    if (!administrator) return player_failure("administrator", administrator_error);
+    if (!request.target_player_id) {
+      return {false, "player_offline", "The target character is not online.", {}, {},
+              std::nullopt};
+    }
+    const auto [target, target_error] = find_online_player(*request.target_player_id);
+    if (!target) return player_failure("target", target_error);
+
+    const auto administrator_location = location_from_controller(*administrator);
+    const auto target_location = location_from_controller(*target);
+    if (!administrator_location || !target_location || !pawn_actor(administrator->controller) ||
+        !pawn_actor(target->controller)) {
+      return {false, "player_state_stale",
+              "A current gameplay state was not available for both characters.", {}, {},
+              std::nullopt};
+    }
+    if (administrator_location->area != PlayerAreaKind::palpagos ||
+        target_location->area != PlayerAreaKind::palpagos) {
+      return {false, "special_area_not_supported",
+              "Teleportation is unavailable while either character is in a special area.",
+              administrator_location->area == PlayerAreaKind::palpagos ? "palpagos"
+                                                                       : "special_area",
+              target_location->area == PlayerAreaKind::palpagos ? "palpagos"
+                                                                : "special_area",
+              std::nullopt};
+    }
+
+    ActivePlayer* moving = target;
+    const PlayerLocation* source = &*target_location;
+    RC::Unreal::FVector destination;
+    if (request.action == AdminActionKind::teleport_admin_to_player) {
+      moving = administrator;
+      source = &*administrator_location;
+      destination = RC::Unreal::FVector(target_location->x, target_location->y,
+                                        target_location->z);
+    } else if (request.action == AdminActionKind::teleport_player_to_admin) {
+      destination = RC::Unreal::FVector(administrator_location->x, administrator_location->y,
+                                        administrator_location->z);
+    } else {
+      if (!request.requested_destination ||
+          request.destination_coordinate_space != "palpagos") {
+        return {false, "safe_destination_unavailable",
+                "A verified Palpagos destination was not available.", "palpagos",
+                request.destination_coordinate_space, std::nullopt};
+      }
+      RC::Unreal::FVector requested(request.requested_destination->x,
+                                    request.requested_destination->y,
+                                    request.requested_destination->z);
+      if (!resolve_safe_floor(pawn_actor(moving->controller), requested, destination) ||
+          is_below_ocean_plane(moving->controller, destination)) {
+        return {false, "safe_destination_unavailable",
+                "The game could not resolve a safe land destination.", "palpagos",
+                "palpagos", std::nullopt};
+      }
+    }
+
+    auto* actor = pawn_actor(moving->controller);
+    if (!actor) {
+      return {false, "player_state_stale", "The moving character is no longer available.",
+              "palpagos", "palpagos", std::nullopt};
+    }
+    const auto rotation = actor->K2_GetActorRotation();
+    if (!actor->K2_TeleportTo(destination, rotation)) {
+      return {false, "teleport_rejected",
+              "The game could not place the character safely at that destination.",
+              "palpagos", "palpagos", std::nullopt};
+    }
+    const auto resolved = actor->K2_GetActorLocation();
+    return {true,
+            {},
+            "Teleport completed.",
+            source->area == PlayerAreaKind::palpagos ? "palpagos" : "special_area",
+            "palpagos",
+            WorldPoint{resolved.X(), resolved.Y(), resolved.Z()}};
+  }
+
+  void probe_admin_action_support() {
+    player_teleport_supported_ =
+        RC::Unreal::UObjectGlobals::StaticFindObject<RC::Unreal::UFunction*>(
+            nullptr, nullptr, STR("/Script/Engine.Actor:K2_TeleportTo")) != nullptr;
+    const auto* utility = RC::Unreal::UObjectGlobals::StaticFindObject<RC::Unreal::UObject*>(
+        nullptr, nullptr, STR("/Script/Pal.Default__PalUtility"));
+    const auto* floor = RC::Unreal::UObjectGlobals::StaticFindObject<RC::Unreal::UFunction*>(
+        nullptr, nullptr, STR("/Script/Pal.PalUtility:CanAdjustActorToFloorAtLocation"));
+    const auto* ocean = RC::Unreal::UObjectGlobals::StaticFindObject<RC::Unreal::UFunction*>(
+        nullptr, nullptr, STR("/Script/Pal.PalUtility:IsUnderWorldOceanPlaneZ"));
+    location_teleport_supported_ = player_teleport_supported_ && utility && floor && ocean;
+  }
+
   static void left(RC::Unreal::UnrealScriptFunctionCallableContext& context,
                    void* custom_data) {
     auto* application = static_cast<CompanionApplication*>(custom_data);
@@ -189,6 +386,7 @@ class PalCenterCompanionMod final : public RC::CppUserModBase {
 
   void register_player_hooks() {
     if (!application_ || hooks_registered_) return;
+    probe_admin_action_support();
     logout_hooks_ = RC::Unreal::UObjectGlobals::RegisterHook(
         STR("/Script/Engine.GameModeBase:K2_OnLogout"), left, {}, application_.get());
     RC::Unreal::Hook::FCallbackOptions options;
@@ -250,6 +448,7 @@ class PalCenterCompanionMod final : public RC::CppUserModBase {
         [this](RC::Unreal::Hook::TCallbackIterationData<void>&, RC::Unreal::UEngine*, float,
                bool) {
           if (!application_) return;
+          application_->process_pending_admin_actions();
           const auto now = std::chrono::steady_clock::now();
           std::erase_if(pending_joins_, [this, now](const PendingJoin& pending) {
             const auto identity = identity_from_controller(pending.controller);
@@ -300,6 +499,8 @@ class PalCenterCompanionMod final : public RC::CppUserModBase {
     } catch (...) {
     }
     hooks_registered_ = false;
+    player_teleport_supported_ = false;
+    location_teleport_supported_ = false;
   }
 
   std::pair<int, int> logout_hooks_{};
@@ -317,6 +518,8 @@ class PalCenterCompanionMod final : public RC::CppUserModBase {
   RC::Unreal::Hook::GlobalCallbackId begin_play_hook_{RC::Unreal::Hook::ERROR_ID};
   RC::Unreal::Hook::GlobalCallbackId engine_tick_hook_{RC::Unreal::Hook::ERROR_ID};
   bool hooks_registered_{false};
+  std::atomic<bool> player_teleport_supported_{false};
+  std::atomic<bool> location_teleport_supported_{false};
 #endif
   std::unique_ptr<CompanionApplication> application_;
 };
