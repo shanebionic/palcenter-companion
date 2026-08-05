@@ -6,8 +6,8 @@ info:
     name: MIT
     identifier: MIT
   description: >-
-    Contract for the optional PalCenter Companion listener. Version 0.3.0 adds
-    bounded player activity from server hooks.
+    Contract for the optional PalCenter Companion listener. Version 0.3.1
+    resolves safe runtime height for verified Palpagos map teleports.
 servers:
   - url: /palcenter/v1
 paths:
@@ -183,7 +183,7 @@ components:
           type: string
           pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
           examples:
-            - 0.3.0
+            - 0.3.1
         apiVersion:
           type: string
           const: v1
@@ -288,7 +288,7 @@ components:
     LocationTeleportRequest:
       type: object
       additionalProperties: false
-      required: [requestId, administratorPlayerId, targetPlayerId, destination]
+      required: [requestId, administratorPlayerId, targetPlayerId, coordinateSpace, x, y, verification]
       properties:
         requestId:
           type: string
@@ -297,16 +297,10 @@ components:
           pattern: "^[A-Za-z0-9._:-]+$"
         administratorPlayerId: { $ref: "#/components/schemas/StablePlayerId" }
         targetPlayerId: { $ref: "#/components/schemas/StablePlayerId" }
-        destination:
-          type: object
-          additionalProperties: false
-          required: [coordinateSpace, verification, x, y, z]
-          properties:
-            coordinateSpace: { type: string, const: palpagos }
-            verification: { type: string, const: palpagos_map }
-            x: { type: number, minimum: -999940, maximum: 447900 }
-            y: { type: number, minimum: -738920, maximum: 708920 }
-            z: { type: number, minimum: -200000, maximum: 1000000 }
+        coordinateSpace: { type: string, const: palpagos }
+        x: { type: number, minimum: -999940, maximum: 447900 }
+        y: { type: number, minimum: -738920, maximum: 708920 }
+        verification: { type: string, const: palpagos_map }
     StablePlayerId:
       type: string
       pattern: "^[0-9A-Fa-f]{32}$"

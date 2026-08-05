@@ -302,7 +302,7 @@ void test_http_endpoints_and_shutdown() {
   httplib::Headers headers{{"Authorization", "Bearer test-token"}};
   const auto version = client.Get("/palcenter/v1/version", headers);
   expect(version && version->status == 200, "Version endpoint should respond");
-  expect(version->body.find("\"applicationVersion\":\"0.3.0\"") != std::string::npos,
+  expect(version->body.find("\"applicationVersion\":\"0.3.1\"") != std::string::npos,
          "Version response should include the application version");
   expect(version->body.find("\"compatibility\":") != std::string::npos,
          "Version response should include informational compatibility");
@@ -455,7 +455,7 @@ void test_application_configuration_and_logging() {
       return message.find(expected) != std::string::npos;
     });
   };
-  expect(contains("PalCenter Companion v0.3.0"), "Startup should log the version");
+  expect(contains("PalCenter Companion v0.3.1"), "Startup should log the version");
   expect(contains("Companion initialized"), "Startup should log initialization");
   expect(contains("Listening on 127.0.0.1:"), "Startup should log the listener");
   expect(contains("API Version v1"), "Startup should log the API version");
@@ -541,10 +541,24 @@ void test_admin_actions_contract_dispatch_and_audit() {
     return "{\"requestId\":\"" + std::string(request_id) +
            "\",\"administratorPlayerId\":\"" + administrator +
            "\",\"targetPlayerId\":\"" + target +
-           "\",\"destination\":{\"coordinateSpace\":\"" +
+           "\",\"coordinateSpace\":\"" +
            std::string(coordinate_space) +
            "\",\"verification\":\"palpagos_map\",\"x\":" + std::string(x) +
-           ",\"y\":200,\"z\":300}}";
+           ",\"y\":200}";
+  };
+  const auto legacy_location_body = [&](const std::string_view request_id) {
+    return "{\"requestId\":\"" + std::string(request_id) +
+           "\",\"administratorPlayerId\":\"" + administrator +
+           "\",\"targetPlayerId\":\"" + target +
+           "\",\"destination\":{\"coordinateSpace\":\"palpagos\","
+           "\"verification\":\"palpagos_map\",\"x\":100,\"y\":200,\"z\":300}}";
+  };
+  const auto caller_z_location_body = [&](const std::string_view request_id) {
+    return "{\"requestId\":\"" + std::string(request_id) +
+           "\",\"administratorPlayerId\":\"" + administrator +
+           "\",\"targetPlayerId\":\"" + target +
+           "\",\"coordinateSpace\":\"palpagos\",\"verification\":\"palpagos_map\","
+           "\"x\":100,\"y\":200,\"z\":300}";
   };
 
   CompanionConfig enabled;
@@ -562,6 +576,8 @@ void test_admin_actions_contract_dispatch_and_audit() {
              capabilities.find("\"teleportPlayerToAdmin\":true") != std::string::npos &&
              capabilities.find("\"teleportPlayerToLocation\":true") != std::string::npos,
          "Capabilities should advertise each executable enabled action independently");
+  expect(capabilities.find("\"capabilityVersion\":\"2\"") != std::string::npos,
+         "Admin actions capability version 2 should identify the runtime-height contract");
 
   const auto first = service->handle(AdminActionKind::teleport_admin_to_player,
                                      player_body("request-success-001"));
@@ -602,6 +618,17 @@ void test_admin_actions_contract_dispatch_and_audit() {
   expect(out_of_range.http_status == 400 &&
              out_of_range.error == "coordinates_out_of_range",
          "Coordinates outside verified Palpagos bounds should be rejected");
+  const auto legacy_location = service->handle(
+      AdminActionKind::teleport_player_to_location,
+      legacy_location_body("request-legacy-location-001"));
+  expect(legacy_location.http_status == 400 &&
+             legacy_location.error == "legacy_location_contract",
+         "The nested location contract with caller-provided Z should be rejected clearly");
+  const auto caller_z = service->handle(
+      AdminActionKind::teleport_player_to_location,
+      caller_z_location_body("request-caller-z-001"));
+  expect(caller_z.http_status == 400 && caller_z.error == "legacy_location_contract",
+         "A top-level caller-provided Z should be rejected clearly");
   expect(executor->executions == 1, "Validation failures must not reach gameplay dispatch");
 
   executor->next_result = {false, "player_offline", "The target character is not online.",
@@ -621,6 +648,22 @@ void test_admin_actions_contract_dispatch_and_audit() {
   expect(unsafe.http_status == 422 && unsafe.error == "safe_destination_unavailable",
          "Failed safe-destination resolution should reject the action");
   expect(executor->executions == 3, "Safe placement failure must not be retried internally");
+
+  executor->next_result = {true, {}, "Teleport completed.", "palpagos", "palpagos",
+                           WorldPoint{100.0, 200.0, 345.0}};
+  const auto safe_location = service->handle(
+      AdminActionKind::teleport_player_to_location,
+      location_body("request-safe-location-001", "palpagos"));
+  expect(safe_location.http_status == 200 && safe_location.resolved_destination &&
+             safe_location.resolved_destination->x == 100.0 &&
+             safe_location.resolved_destination->y == 200.0 &&
+             safe_location.resolved_destination->z == 345.0,
+         "A successful map teleport should return the runtime-resolved X, Y, and Z");
+  expect(executor->last_request.requested_destination &&
+             executor->last_request.requested_destination->x == 100.0 &&
+             executor->last_request.requested_destination->y == 200.0,
+         "Gameplay dispatch should receive only the verified map X and Y");
+  expect(executor->executions == 4, "A safe map teleport should execute exactly once");
 
   CompanionConfig disabled = enabled;
   disabled.admin_actions_enabled = false;
@@ -689,6 +732,9 @@ void test_admin_actions_contract_dispatch_and_audit() {
          "Audit records must never contain authentication tokens");
   expect(audit_content.find("authentication_required") != std::string::npos,
          "Rejected authentication attempts should be present in the action audit");
+  expect(audit_content.find("\"resolvedDestination\":{\"x\":100.0,\"y\":200.0,\"z\":345.0}") !=
+             std::string::npos,
+         "The audit should include the runtime-resolved successful destination");
   audit_input.close();
 
   service->shutdown();
@@ -703,6 +749,14 @@ void test_admin_actions_contract_dispatch_and_audit() {
   expect(durable_replay.replayed && durable_replay.http_status == 200 &&
              restart_executor->executions == 0,
          "Retained audit records should preserve idempotency across restarts");
+  const auto durable_location_replay = restarted_service->handle(
+      AdminActionKind::teleport_player_to_location,
+      location_body("request-safe-location-001", "palpagos"));
+  expect(durable_location_replay.replayed && durable_location_replay.http_status == 200 &&
+             durable_location_replay.resolved_destination &&
+             durable_location_replay.resolved_destination->z == 345.0 &&
+             restart_executor->executions == 0,
+         "A retained location replay should include the original resolved destination");
   restarted_service->shutdown();
   std::filesystem::remove_all(directory);
 }

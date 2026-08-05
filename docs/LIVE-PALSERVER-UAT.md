@@ -1,6 +1,6 @@
 # Live PalServer UAT
 
-Complete this checklist against a disposable or backed-up server before publishing v0.3.0. Record sanitized evidence with timestamps. Do not mark a row passed without live evidence.
+Complete this checklist against a disposable or backed-up server before publishing v0.3.1. Record sanitized evidence with timestamps. Do not mark a row passed without live evidence.
 
 ## Test record
 
@@ -95,7 +95,7 @@ For each case, restart PalServer, capture the relevant log, verify expected list
 Startup should include:
 
 ```text
-[PalCenterCompanion] PalCenter Companion v0.3.0
+[PalCenterCompanion] PalCenter Companion v0.3.1
 [PalCenterCompanion] Companion initialized
 [PalCenterCompanion] Listening on 127.0.0.1:8213
 [PalCenterCompanion] API Version v1

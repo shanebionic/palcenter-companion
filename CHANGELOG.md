@@ -12,6 +12,13 @@ All notable changes to PalCenter Companion will be documented here. This project
 - Game-thread dispatch with live-player, coordinate-space, and safe-placement checks.
 - Focused automated coverage and a packaged administrator UAT guide.
 
+### Changed
+
+- Location teleport requests now accept verified Palpagos X/Y only and resolve
+  safe Z through Palworld at dispatch time; legacy caller-provided Z is rejected.
+- Admin-action capability version advanced to `2`, and successful audit/replay
+  records retain the runtime-resolved X/Y/Z destination.
+
 ## [0.1.0] - 2026-08-02
 
 ### Added

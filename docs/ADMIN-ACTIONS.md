@@ -16,13 +16,15 @@ stale, or special-area state. Player-to-player actions use the destination
 character's authoritative position and Unreal's collision-aware
 `K2_TeleportTo`, preserving the moving actor's rotation.
 
-Location actions accept only `palpagos` plus `verification: palpagos_map`, the
-documented Palpagos X/Y bounds, and a finite caller-supplied Z. On the game
-thread, Palworld's reflected `CanAdjustActorToFloorAtLocation` must resolve the
-floor without prioritizing water. The result is rejected below the world ocean
-plane, then passed to `K2_TeleportTo`. Any missing reflection function, failed
-floor result, collision rejection, or unavailable player state fails closed.
-No guessed Z or raw actor-location fallback is used.
+Location actions accept top-level `coordinateSpace: palpagos`,
+`verification: palpagos_map`, and finite X/Y inside the documented Palpagos
+bounds. They reject the legacy nested destination and every caller-provided Z.
+On the game thread, Companion uses the moving actor's current live Z only as
+the trace seed for Palworld's long `CanAdjustActorToFloorAtLocation` resolver;
+the caller cannot influence height. The resolved floor is rejected below the
+world ocean plane, then passed to `K2_TeleportTo`. Any missing reflection
+function, failed floor result, collision rejection, or unavailable player state
+fails closed. No guessed or fixed fallback Z is used.
 
 The reflected function signatures are cross-checked against the pinned
 [`PalUtility` SDK declaration](https://github.com/localcc/PalworldModdingKit/blob/62fad4130238cb0aadf024b87496e7387d5f4bf5/Source/Pal/Public/PalUtility.h).
@@ -44,8 +46,9 @@ restart. The current and one prior file are capped at 5 MiB each, so retry
 guarantees cover the retained administrator-readable audit window.
 
 An accepted record is flushed before queueing. Final and rejected results are
-also recorded with player IDs, coordinate spaces, destinations, and concise
-reasons. Authentication tokens and display names are never written.
+also recorded with player IDs, coordinate spaces, requested X/Y, the resolved
+X/Y/Z, and concise reasons. Authentication tokens and display names are never
+written.
 
 ## Live-UAT boundary
 

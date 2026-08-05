@@ -99,7 +99,7 @@ jobs:
         with:
           name: palcenter-companion-uat-${{ github.sha }}
           path: |
-            artifacts/PalCenterCompanion-0.3.0-win64.zip
-            artifacts/PalCenterCompanion-0.3.0-win64.zip.sha256
+            artifacts/PalCenterCompanion-0.3.1-win64.zip
+            artifacts/PalCenterCompanion-0.3.1-win64.zip.sha256
           if-no-files-found: error
           retention-days: 14

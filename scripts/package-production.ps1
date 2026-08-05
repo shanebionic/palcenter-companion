@@ -16,7 +16,7 @@ $resolvedOutput = if ([System.IO.Path]::IsPathRooted($OutputDirectory)) {
 }
 $stagingRoot = Join-Path $resolvedOutput "stage"
 $packageRoot = Join-Path $stagingRoot "PalCenterCompanion"
-$archivePath = Join-Path $resolvedOutput "PalCenterCompanion-0.3.0-win64.zip"
+$archivePath = Join-Path $resolvedOutput "PalCenterCompanion-0.3.1-win64.zip"
 
 $productionDlls = @(Get-ChildItem -LiteralPath $resolvedBuild -Filter "main.dll" -Recurse -File)
 if ($productionDlls.Count -ne 1) {
