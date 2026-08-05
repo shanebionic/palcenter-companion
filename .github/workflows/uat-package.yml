@@ -64,23 +64,13 @@ jobs:
         with:
           toolchain: 1.88.0
 
-      - name: Configure production extension
+      - name: Build and package production extension
         shell: pwsh
         run: >-
-          cmake -S . -B build-production -G "Visual Studio 17 2022" -A x64
-          -DCMAKE_SYSTEM_VERSION=10.0.26100.0
-          -DPALCENTER_BUILD_TESTS=OFF
-          -DPALCENTER_UE4SS_BUILD_MODE=PRODUCTION
-          -DPALCENTER_UE4SS_ROOT=${{ github.workspace }}/ue4ss-source
-          -DPALCENTER_BUILD_COMMIT=${{ github.sha }}
-          -DPALCENTER_BUILD_BRANCH=${{ github.head_ref || github.ref_name }}
-
-      - name: Build production extension
-        run: cmake --build build-production --config Release --parallel
-
-      - name: Package and validate UAT files
-        shell: pwsh
-        run: ./scripts/package-production.ps1 -BuildDirectory build-production -OutputDirectory artifacts
+          ./scripts/build-production.ps1
+          -Ue4ssRoot "${{ github.workspace }}/ue4ss-source"
+          -BuildDirectory build-production
+          -OutputDirectory artifacts
 
       - name: Upload UAT package
         uses: actions/upload-artifact@v4
