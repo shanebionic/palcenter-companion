@@ -1,0 +1,62 @@
+name: Companion UAT Package
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: uat-package-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: Production UAT package
+    runs-on: windows-2022
+    steps:
+      - name: Check out Companion
+        uses: actions/checkout@v4
+
+      - name: Check out pinned UE4SS source
+        uses: actions/checkout@v4
+        with:
+          repository: Okaetsu/RE-UE4SS
+          ref: c838a8acaade1a0f860bdf249f039e58f4e10088
+          token: ${{ secrets.UE4SS_TOKEN }}
+          submodules: recursive
+          path: ue4ss-source
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: 1.88.0
+
+      - name: Configure production extension
+        shell: pwsh
+        run: >-
+          cmake -S . -B build-production -G "Visual Studio 17 2022" -A x64
+          -DCMAKE_SYSTEM_VERSION=10.0.26100.0
+          -DPALCENTER_BUILD_TESTS=OFF
+          -DPALCENTER_UE4SS_BUILD_MODE=PRODUCTION
+          -DPALCENTER_UE4SS_ROOT=${{ github.workspace }}/ue4ss-source
+          -DPALCENTER_BUILD_COMMIT=${{ github.sha }}
+          -DPALCENTER_BUILD_BRANCH=${{ github.head_ref || github.ref_name }}
+
+      - name: Build production extension
+        run: cmake --build build-production --config Release --parallel
+
+      - name: Package and validate UAT files
+        shell: pwsh
+        run: ./scripts/package-production.ps1 -BuildDirectory build-production -OutputDirectory artifacts
+
+      - name: Upload UAT package
+        uses: actions/upload-artifact@v4
+        with:
+          name: palcenter-companion-uat-${{ github.sha }}
+          path: |
+            artifacts/PalCenterCompanion-0.3.0-win64.zip
+            artifacts/PalCenterCompanion-0.3.0-win64.zip.sha256
+          if-no-files-found: error
+          retention-days: 14
