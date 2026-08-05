@@ -37,6 +37,7 @@ jobs:
             throw "The UE4SS_TOKEN repository secret is required to fetch the access-controlled UEPseudo submodule."
           }
           git -C ue4ss-source config url."https://x-access-token:$env:UE4SS_TOKEN@github.com/".insteadOf "git@github.com:"
+          git -C ue4ss-source config --add url."https://x-access-token:$env:UE4SS_TOKEN@github.com/".insteadOf "ssh://git@github.com/"
           git -C ue4ss-source submodule update --init --recursive
 
       - name: Set up Rust
