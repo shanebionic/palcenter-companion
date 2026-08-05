@@ -36,8 +36,26 @@ jobs:
           if (-not $env:UE4SS_TOKEN) {
             throw "The UE4SS_TOKEN repository secret is required to fetch the access-controlled UEPseudo submodule."
           }
-          git -C ue4ss-source config url."https://x-access-token:$env:UE4SS_TOKEN@github.com/".insteadOf "git@github.com:"
-          git -C ue4ss-source config --add url."https://x-access-token:$env:UE4SS_TOKEN@github.com/".insteadOf "ssh://git@github.com/"
+          $submoduleEntries = @(git -C ue4ss-source config --file .gitmodules --get-regexp '^submodule\..*\.url$')
+          foreach ($entry in $submoduleEntries) {
+            $parts = $entry -split '\s+', 2
+            if ($parts.Count -ne 2) {
+              throw "Unable to parse a UE4SS submodule URL from .gitmodules."
+            }
+            $key = $parts[0]
+            $url = $parts[1]
+            $repositoryPath = $null
+            if ($url -match '^git@github\.com:(.+)$') {
+              $repositoryPath = $Matches[1]
+            } elseif ($url -match '^ssh://git@github\.com/(.+)$') {
+              $repositoryPath = $Matches[1]
+            }
+            if ($repositoryPath) {
+              $httpsUrl = "https://x-access-token:$env:UE4SS_TOKEN@github.com/$repositoryPath"
+              git -C ue4ss-source config --local $key $httpsUrl
+            }
+          }
+          git -C ue4ss-source submodule sync --recursive
           git -C ue4ss-source submodule update --init --recursive
 
       - name: Set up Rust
