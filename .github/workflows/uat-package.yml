@@ -24,7 +24,7 @@ jobs:
         with:
           repository: Okaetsu/RE-UE4SS
           ref: c838a8acaade1a0f860bdf249f039e58f4e10088
-          token: ${{ secrets.UE4SS_TOKEN }}
+          token: ${{ secrets.UE4SS_TOKEN || github.token }}
           submodules: recursive
           path: ue4ss-source
 
