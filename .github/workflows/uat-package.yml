@@ -62,7 +62,14 @@ jobs:
       - name: Set up Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: 1.88.0
+          # UE4SS's pinned PatternSleuth submodule declares nightly.  Keep the
+          # nightly snapshot aligned with the pinned UE4SS revision instead of
+          # overriding it with a stable compiler.
+          toolchain: nightly-2026-05-16
+          # This third-party workspace has a known unused import.  The action
+          # defaults to -D warnings, which turns that upstream warning into a
+          # build failure; leave UE4SS's normal Rust warning policy intact.
+          rustflags: ""
 
       - name: Configure production extension
         shell: pwsh
