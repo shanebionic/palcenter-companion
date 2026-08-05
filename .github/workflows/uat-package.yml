@@ -52,6 +52,7 @@ jobs:
             }
             if ($repositoryPath) {
               $httpsUrl = "https://x-access-token:$env:UE4SS_TOKEN@github.com/$repositoryPath"
+              git -C ue4ss-source config --file .gitmodules $key $httpsUrl
               git -C ue4ss-source config --local $key $httpsUrl
             }
           }
