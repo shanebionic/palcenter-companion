@@ -11,6 +11,8 @@ All notable changes to PalCenter Companion will be documented here. This project
 - Durable bounded teleport audit and retained idempotency records.
 - Game-thread dispatch with live-player, coordinate-space, and safe-placement checks.
 - Focused automated coverage and a packaged administrator UAT guide.
+- Per-prerequisite map-teleport runtime diagnostics in logs and additive,
+  non-secret unsupported reason codes in capability discovery.
 
 ### Changed
 
@@ -18,6 +20,11 @@ All notable changes to PalCenter Companion will be documented here. This project
   safe Z through Palworld at dispatch time; legacy caller-provided Z is rejected.
 - Admin-action capability version advanced to `2`, and successful audit/replay
   records retain the runtime-resolved X/Y/Z destination.
+- Map-teleport support probing is lifecycle-aware, allowing an early missing
+  Palworld utility object to become available after world initialization.
+- Runtime signature validation recognizes Unreal's confirmed const-reference
+  flag encoding for the ocean-plane location input without accepting arbitrary
+  writable output parameters.
 
 ## [0.1.0] - 2026-08-02
 

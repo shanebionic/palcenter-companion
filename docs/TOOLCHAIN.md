@@ -9,7 +9,7 @@ PalCenter Companion production binaries are reproducible only when built and tes
 | RE-UE4SS branch/revision | `main` at `c838a8acaade1a0f860bdf249f039e58f4e10088` |
 | Compiler | Visual Studio 2022 17.14, MSVC 19.44 (`MSVC_VERSION=1944`), x64 |
 | Windows SDK | `10.0.26100.0` |
-| Rust | `rustc 1.88.0` (`x86_64-pc-windows-msvc`) |
+| Rust | `rustc 1.97.0-nightly` from `nightly-2026-05-16` (`x86_64-pc-windows-msvc`) |
 | CMake generator | `Visual Studio 17 2022`, platform `x64` |
 | UE4SS build configuration | `Game__Shipping__Win64` |
 | C++ runtime | Dynamic multithreaded runtime (`/MD` for Release) |
@@ -35,6 +35,8 @@ The SSH URL used by the authorized submodule requires appropriate GitHub credent
 From a Visual Studio 2022 Developer PowerShell:
 
 ```powershell
+rustup toolchain install nightly-2026-05-16
+$env:RUSTUP_TOOLCHAIN = "nightly-2026-05-16"
 .\scripts\build-production.ps1 -Ue4ssRoot C:\src\RE-UE4SS
 ```
 

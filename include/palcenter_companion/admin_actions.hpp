@@ -71,6 +71,10 @@ class AdminActionExecutor {
  public:
   virtual ~AdminActionExecutor() = default;
   [[nodiscard]] virtual bool supports(AdminActionKind action) const noexcept = 0;
+  [[nodiscard]] virtual std::string_view unsupported_reason(
+      AdminActionKind action) const noexcept {
+    return supports(action) ? std::string_view{} : "runtime_support_unavailable";
+  }
   virtual AdminActionExecutionResult execute(const AdminActionRequest& request) noexcept = 0;
 };
 
@@ -112,6 +116,7 @@ class AdminActionService final {
   };
 
   [[nodiscard]] bool configured(AdminActionKind action) const noexcept;
+  [[nodiscard]] std::string unsupported_reason(AdminActionKind action) const;
   bool audit(const AdminActionRequest& request, const AdminActionResponse& response,
              std::string_view result_override = {});
   void load_idempotency_records();

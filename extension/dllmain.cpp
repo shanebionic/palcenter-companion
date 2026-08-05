@@ -10,6 +10,7 @@
 #include <chrono>
 #include <filesystem>
 #include <iomanip>
+#include <initializer_list>
 #include <memory>
 #include <optional>
 #include <sstream>
@@ -74,13 +75,54 @@ void log_to_ue4ss(const LogLevel level, const std::string_view message) {
   }
 }
 
+#ifdef PALCENTER_PRODUCTION_HOOKS
+enum class MapTeleportSupportState {
+  runtime_initializing,
+  collision_function_unavailable,
+  collision_signature_mismatch,
+  utility_object_unavailable,
+  floor_function_unavailable,
+  floor_signature_mismatch,
+  ocean_function_unavailable,
+  ocean_signature_mismatch,
+  probe_failed,
+  ready
+};
+
+std::string_view support_diagnostic_code(const MapTeleportSupportState state) noexcept {
+  switch (state) {
+    case MapTeleportSupportState::runtime_initializing:
+      return "safe_placement_runtime_initializing";
+    case MapTeleportSupportState::collision_function_unavailable:
+      return "collision_teleport_function_unavailable";
+    case MapTeleportSupportState::collision_signature_mismatch:
+      return "collision_teleport_signature_mismatch";
+    case MapTeleportSupportState::utility_object_unavailable:
+      return "safe_placement_utility_unavailable";
+    case MapTeleportSupportState::floor_function_unavailable:
+      return "safe_floor_function_unavailable";
+    case MapTeleportSupportState::floor_signature_mismatch:
+      return "safe_floor_signature_mismatch";
+    case MapTeleportSupportState::ocean_function_unavailable:
+      return "ocean_check_function_unavailable";
+    case MapTeleportSupportState::ocean_signature_mismatch:
+      return "ocean_check_signature_mismatch";
+    case MapTeleportSupportState::probe_failed:
+      return "safe_placement_probe_failed";
+    case MapTeleportSupportState::ready:
+      return {};
+  }
+  return "safe_placement_probe_failed";
+}
+#endif
+
 }  // namespace
 
 class PalCenterCompanionMod final : public RC::CppUserModBase, public AdminActionExecutor {
  public:
   PalCenterCompanionMod() {
     ModName = STR("PalCenter Companion");
-    ModVersion = STR("0.3.1");
+    ModVersion = STR("0.3.2");
     ModDescription = STR("Optional authoritative server extension for PalCenter");
     ModAuthors = STR("PalCenter Companion contributors");
   }
@@ -121,6 +163,20 @@ class PalCenterCompanionMod final : public RC::CppUserModBase, public AdminActio
 #else
     static_cast<void>(action);
     return false;
+#endif
+  }
+
+  [[nodiscard]] std::string_view unsupported_reason(
+      const AdminActionKind action) const noexcept override {
+#ifdef PALCENTER_PRODUCTION_HOOKS
+    if (action == AdminActionKind::teleport_player_to_location) {
+      return support_diagnostic_code(location_support_state_.load());
+    }
+    return player_teleport_supported_.load() ? std::string_view{}
+                                             : "collision_teleport_function_unavailable";
+#else
+    static_cast<void>(action);
+    return "production_runtime_unavailable";
 #endif
   }
 
@@ -183,6 +239,65 @@ class PalCenterCompanionMod final : public RC::CppUserModBase, public AdminActio
     UE_COPY_VECTOR(Location, Location)
     UE_CALL_STATIC_FUNCTION()
     UE_RETURN_PROPERTY(bool)
+  }
+
+  struct ExpectedParameter {
+    std::string_view name;
+    std::string_view type;
+    bool output{false};
+    bool returns{false};
+  };
+
+  static bool function_signature_matches(
+      RC::Unreal::UFunction* function,
+      const std::initializer_list<ExpectedParameter> expected) {
+    if (!function) return false;
+    auto item = expected.begin();
+    std::size_t count = 0;
+    bool matches = true;
+    for (RC::Unreal::FProperty* property : RC::Unreal::TFieldRange<RC::Unreal::FProperty>(
+             function, RC::Unreal::EFieldIterationFlags::IncludeDeprecated)) {
+      using namespace RC::Unreal;
+      if (!property->HasAnyPropertyFlags(CPF_Parm)) continue;
+      if (item == expected.end()) {
+        matches = false;
+        continue;
+      }
+      const auto returns = property->HasAnyPropertyFlags(CPF_ReturnParm);
+      const auto constant = property->HasAnyPropertyFlags(CPF_ConstParm);
+      const auto output = property->HasAnyPropertyFlags(CPF_OutParm) && !constant && !returns;
+      const auto name = RC::to_string(property->GetName());
+      const auto type = RC::to_string(property->GetClass().GetFName().ToString());
+      matches = matches && name == item->name && type == item->type &&
+                output == item->output && returns == item->returns;
+      ++item;
+      ++count;
+    }
+    return matches && count == expected.size();
+  }
+
+  static std::string describe_function_signature(RC::Unreal::UFunction* function) {
+    if (!function) return "unavailable";
+    std::ostringstream description;
+    bool first = true;
+    for (RC::Unreal::FProperty* property : RC::Unreal::TFieldRange<RC::Unreal::FProperty>(
+             function, RC::Unreal::EFieldIterationFlags::IncludeDeprecated)) {
+      using namespace RC::Unreal;
+      if (!property->HasAnyPropertyFlags(CPF_Parm)) continue;
+      if (!first) description << ", ";
+      first = false;
+      const auto returns = property->HasAnyPropertyFlags(CPF_ReturnParm);
+      const auto constant = property->HasAnyPropertyFlags(CPF_ConstParm);
+      const auto reference = property->HasAnyPropertyFlags(CPF_ReferenceParm);
+      const auto output = property->HasAnyPropertyFlags(CPF_OutParm) && !constant && !returns;
+      description << RC::to_string(property->GetName()) << ':'
+                  << RC::to_string(property->GetClass().GetFName().ToString()) << ':'
+                  << (returns ? "return"
+                              : output ? "out"
+                              : constant && reference ? "const-ref"
+                                                     : constant ? "const" : "in");
+    }
+    return first ? "no parameters" : description.str();
   }
 
   static RC::Unreal::AActor* pawn_actor(RC::Unreal::UObject* controller) {
@@ -369,17 +484,123 @@ class PalCenterCompanionMod final : public RC::CppUserModBase, public AdminActio
             WorldPoint{resolved.X(), resolved.Y(), resolved.Z()}};
   }
 
-  void probe_admin_action_support() {
-    player_teleport_supported_ =
-        RC::Unreal::UObjectGlobals::StaticFindObject<RC::Unreal::UFunction*>(
-            nullptr, nullptr, STR("/Script/Engine.Actor:K2_TeleportTo")) != nullptr;
-    const auto* utility = RC::Unreal::UObjectGlobals::StaticFindObject<RC::Unreal::UObject*>(
-        nullptr, nullptr, STR("/Script/Pal.Default__PalUtility"));
-    const auto* floor = RC::Unreal::UObjectGlobals::StaticFindObject<RC::Unreal::UFunction*>(
-        nullptr, nullptr, STR("/Script/Pal.PalUtility:CanAdjustActorToFloorAtLocation"));
-    const auto* ocean = RC::Unreal::UObjectGlobals::StaticFindObject<RC::Unreal::UFunction*>(
-        nullptr, nullptr, STR("/Script/Pal.PalUtility:IsUnderWorldOceanPlaneZ"));
-    location_teleport_supported_ = player_teleport_supported_ && utility && floor && ocean;
+  void probe_admin_action_support() noexcept {
+    try {
+      using namespace RC::Unreal;
+      auto* collision = UObjectGlobals::StaticFindObject<UFunction*>(
+          nullptr, nullptr, STR("/Script/Engine.Actor:K2_TeleportTo"));
+      auto* utility = UObjectGlobals::StaticFindObject<UObject*>(
+          nullptr, nullptr, STR("/Script/Pal.Default__PalUtility"));
+      auto* floor = UObjectGlobals::StaticFindObject<UFunction*>(
+          nullptr, nullptr, STR("/Script/Pal.PalUtility:CanAdjustActorToFloorAtLocation"));
+      auto* ocean = UObjectGlobals::StaticFindObject<UFunction*>(
+          nullptr, nullptr, STR("/Script/Pal.PalUtility:IsUnderWorldOceanPlaneZ"));
+
+      const auto collision_signature = function_signature_matches(
+          collision, {{"DestLocation", "StructProperty"},
+                      {"DestRotation", "StructProperty"},
+                      {"ReturnValue", "BoolProperty", false, true}});
+      const auto floor_signature = function_signature_matches(
+          floor, {{"TargetActor", "ObjectProperty"},
+                  {"InLocation", "StructProperty"},
+                  {"UpOffset", "FloatProperty"},
+                  {"OutLocation", "StructProperty", true},
+                  {"ShortRayLength", "BoolProperty"},
+                  {"PriorityWater", "BoolProperty"},
+                  {"onlyCheckWater", "BoolProperty"},
+                  {"ReturnValue", "BoolProperty", false, true}});
+      const auto ocean_signature = function_signature_matches(
+          ocean, {{"WorldContextObject", "ObjectProperty"},
+                  {"Location", "StructProperty"},
+                  {"ReturnValue", "BoolProperty", false, true}});
+
+      player_teleport_supported_.store(collision != nullptr);
+      MapTeleportSupportState state{MapTeleportSupportState::ready};
+      if (!collision) {
+        state = MapTeleportSupportState::collision_function_unavailable;
+      } else if (!collision_signature) {
+        state = MapTeleportSupportState::collision_signature_mismatch;
+      } else if (!utility) {
+        state = MapTeleportSupportState::utility_object_unavailable;
+      } else if (!floor) {
+        state = MapTeleportSupportState::floor_function_unavailable;
+      } else if (!floor_signature) {
+        state = MapTeleportSupportState::floor_signature_mismatch;
+      } else if (!ocean) {
+        state = MapTeleportSupportState::ocean_function_unavailable;
+      } else if (!ocean_signature) {
+        state = MapTeleportSupportState::ocean_signature_mismatch;
+      }
+      location_support_state_.store(state);
+      location_teleport_supported_.store(state == MapTeleportSupportState::ready);
+
+      unsigned int readiness = 0;
+      readiness |= collision ? 1U << 0U : 0;
+      readiness |= collision_signature ? 1U << 1U : 0;
+      readiness |= utility ? 1U << 2U : 0;
+      readiness |= floor ? 1U << 3U : 0;
+      readiness |= floor_signature ? 1U << 4U : 0;
+      readiness |= ocean ? 1U << 5U : 0;
+      readiness |= ocean_signature ? 1U << 6U : 0;
+      if (!support_probe_logged_ || readiness != last_support_readiness_) {
+        const auto status = [](const bool ready) { return ready ? "ready" : "unavailable"; };
+        log_to_ue4ss(LogLevel::information,
+                     "Map teleport prerequisite collision function: " +
+                         std::string(status(collision != nullptr)));
+        log_to_ue4ss(LogLevel::information,
+                     "Map teleport prerequisite collision signature: " +
+                         std::string(status(collision_signature)));
+        log_to_ue4ss(LogLevel::information,
+                     "Map teleport prerequisite Palworld utility object: " +
+                         std::string(status(utility != nullptr)));
+        log_to_ue4ss(LogLevel::information,
+                     "Map teleport prerequisite floor function: " +
+                         std::string(status(floor != nullptr)));
+        log_to_ue4ss(LogLevel::information,
+                     "Map teleport prerequisite floor signature: " +
+                         std::string(status(floor_signature)));
+        log_to_ue4ss(LogLevel::information,
+                     "Map teleport prerequisite ocean function: " +
+                         std::string(status(ocean != nullptr)));
+        log_to_ue4ss(LogLevel::information,
+                     "Map teleport prerequisite ocean signature: " +
+                         std::string(status(ocean_signature)));
+        if (collision && !collision_signature) {
+          log_to_ue4ss(LogLevel::warning,
+                       "Map teleport collision runtime signature: " +
+                           describe_function_signature(collision));
+        }
+        if (floor && !floor_signature) {
+          log_to_ue4ss(LogLevel::warning,
+                       "Map teleport floor runtime signature: " +
+                           describe_function_signature(floor));
+        }
+        if (ocean && !ocean_signature) {
+          log_to_ue4ss(LogLevel::warning,
+                       "Map teleport ocean runtime signature: " +
+                           describe_function_signature(ocean));
+        }
+        const auto code = support_diagnostic_code(state);
+        log_to_ue4ss(
+            state == MapTeleportSupportState::ready ? LogLevel::information
+                                                    : LogLevel::warning,
+            state == MapTeleportSupportState::ready
+                ? "Map teleport runtime support: ready"
+                : "Map teleport runtime support: unavailable (" + std::string(code) +
+                      "); lifecycle probe will retry");
+        support_probe_logged_ = true;
+        last_support_readiness_ = readiness;
+      }
+    } catch (...) {
+      location_teleport_supported_.store(false);
+      location_support_state_.store(MapTeleportSupportState::probe_failed);
+      if (!support_probe_logged_ || last_support_readiness_ != 0) {
+        log_to_ue4ss(LogLevel::warning,
+                     "Map teleport runtime support: probe failed; lifecycle probe will retry");
+        support_probe_logged_ = true;
+        last_support_readiness_ = 0;
+      }
+    }
   }
 
   static void left(RC::Unreal::UnrealScriptFunctionCallableContext& context,
@@ -456,6 +677,13 @@ class PalCenterCompanionMod final : public RC::CppUserModBase, public AdminActio
           if (!application_) return;
           application_->process_pending_admin_actions();
           const auto now = std::chrono::steady_clock::now();
+          if (now >= next_support_probe_) {
+            probe_admin_action_support();
+            next_support_probe_ =
+                now + (location_teleport_supported_.load()
+                           ? supported_probe_interval_
+                           : initializing_probe_interval_);
+          }
           std::erase_if(pending_joins_, [this, now](const PendingJoin& pending) {
             const auto identity = identity_from_controller(pending.controller);
             if (is_resolved_identity(identity)) {
@@ -505,8 +733,9 @@ class PalCenterCompanionMod final : public RC::CppUserModBase, public AdminActio
     } catch (...) {
     }
     hooks_registered_ = false;
-    player_teleport_supported_ = false;
-    location_teleport_supported_ = false;
+    player_teleport_supported_.store(false);
+    location_teleport_supported_.store(false);
+    location_support_state_.store(MapTeleportSupportState::runtime_initializing);
   }
 
   std::pair<int, int> logout_hooks_{};
@@ -517,15 +746,22 @@ class PalCenterCompanionMod final : public RC::CppUserModBase, public AdminActio
   static constexpr std::size_t maximum_pending_joins_{256};
   static constexpr std::chrono::seconds identity_resolution_timeout_{30};
   static constexpr std::chrono::seconds location_sample_interval_{2};
+  static constexpr std::chrono::seconds initializing_probe_interval_{2};
+  static constexpr std::chrono::seconds supported_probe_interval_{30};
   std::vector<PendingJoin> pending_joins_;
   std::vector<ActivePlayer> active_players_;
   std::chrono::steady_clock::time_point next_location_sample_{};
+  std::chrono::steady_clock::time_point next_support_probe_{};
   RC::Unreal::Hook::GlobalCallbackId end_play_hook_{RC::Unreal::Hook::ERROR_ID};
   RC::Unreal::Hook::GlobalCallbackId begin_play_hook_{RC::Unreal::Hook::ERROR_ID};
   RC::Unreal::Hook::GlobalCallbackId engine_tick_hook_{RC::Unreal::Hook::ERROR_ID};
   bool hooks_registered_{false};
   std::atomic<bool> player_teleport_supported_{false};
   std::atomic<bool> location_teleport_supported_{false};
+  std::atomic<MapTeleportSupportState> location_support_state_{
+      MapTeleportSupportState::runtime_initializing};
+  bool support_probe_logged_{false};
+  unsigned int last_support_readiness_{0};
 #endif
   std::unique_ptr<CompanionApplication> application_;
 };

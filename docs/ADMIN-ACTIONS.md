@@ -33,9 +33,22 @@ Unreal documents that
 attempts a nearby collision-free fit and reports failure when the actor cannot
 be placed.
 
-Runtime capability probing verifies the reflected functions before advertising
-the location action. Each action also requires both the global privileged gate
-and its own configuration gate.
+Runtime capability probing verifies the reflected functions, parameter names,
+types, and directions before advertising the location action. The probe repeats
+while the game world initializes instead of permanently caching an early
+failure. On the validated PalServer build, `Default__PalUtility` is absent at
+the first UE4SS initialization callback and becomes available several seconds
+later. Unreal reflects the SDK-declared `const FVector& Location` ocean-check
+input with `ConstParm`, `ReferenceParm`, and `OutParm`; the detector treats that
+narrow flag combination as a const input while continuing to reject a genuine
+writable output signature. Each action also requires both the global privileged
+gate and its own configuration gate.
+
+Startup logs report each prerequisite independently and log full reflected
+parameter details only when a signature differs. The additive capability
+`diagnostics` map exposes only concise non-secret codes. Capability consumers
+must continue using the Boolean action as the feature gate and may refresh it
+after world initialization.
 
 ## Idempotency and audit
 

@@ -53,3 +53,11 @@ location request that accepts verified Palpagos X/Y and resolves Z inside the
 Companion. An identifier is true only when configuration
 enables it and the installed runtime has probed the required game integration.
 Consumers must check the individual action rather than the family-level summary.
+
+The additive `diagnostics` object reports a concise reason code for each false
+action and `null` for an available action. These codes are operational hints,
+not feature gates; consumers must ignore unknown codes. Map teleport is probed
+throughout the server lifecycle because the Palworld utility default object can
+be absent during initial UE4SS initialization and appear after the world is
+ready. A later successful probe changes the action to `true` without requiring
+a Companion restart. A later failed probe withdraws support again.

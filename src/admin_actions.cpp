@@ -304,7 +304,20 @@ bool AdminActionService::advertised(const AdminActionKind action) const noexcept
   return configured(action) && executor_ && executor_->supports(action);
 }
 
+std::string AdminActionService::unsupported_reason(const AdminActionKind action) const {
+  if (!config_.admin_actions_enabled) return "global_configuration_disabled";
+  if (!configured(action)) return "action_configuration_disabled";
+  if (!executor_) return "runtime_executor_unavailable";
+  if (executor_->supports(action)) return {};
+  const auto reason = executor_->unsupported_reason(action);
+  return reason.empty() ? "runtime_support_unavailable" : std::string(reason);
+}
+
 std::string AdminActionService::capabilities_json() const {
+  const auto diagnostic = [this](const AdminActionKind action) -> Json {
+    const auto reason = unsupported_reason(action);
+    return reason.empty() ? Json(nullptr) : Json(reason);
+  };
   const Json body{
       {"schemaVersion", "1"},
       {"categories",
@@ -323,7 +336,14 @@ std::string AdminActionService::capabilities_json() const {
             {"teleportPlayerToAdmin",
              advertised(AdminActionKind::teleport_player_to_admin)},
             {"teleportPlayerToLocation",
-             advertised(AdminActionKind::teleport_player_to_location)}}}}},
+             advertised(AdminActionKind::teleport_player_to_location)}}},
+          {"diagnostics",
+           {{"teleportAdminToPlayer",
+             diagnostic(AdminActionKind::teleport_admin_to_player)},
+            {"teleportPlayerToAdmin",
+             diagnostic(AdminActionKind::teleport_player_to_admin)},
+            {"teleportPlayerToLocation",
+             diagnostic(AdminActionKind::teleport_player_to_location)}}}}},
         {"guilds", {{"supported", false}, {"capabilityVersion", "1"}}},
         {"bases", {{"supported", false}, {"capabilityVersion", "1"}}},
         {"performance", {{"supported", false}, {"capabilityVersion", "1"}}},

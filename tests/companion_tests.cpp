@@ -62,6 +62,11 @@ class FakeAdminActionExecutor final : public AdminActionExecutor {
     return false;
   }
 
+  [[nodiscard]] std::string_view unsupported_reason(
+      const AdminActionKind action) const noexcept override {
+    return supports(action) ? std::string_view{} : runtime_unsupported_reason;
+  }
+
   AdminActionExecutionResult execute(const AdminActionRequest& request) noexcept override {
     ++executions;
     last_request = request;
@@ -71,6 +76,7 @@ class FakeAdminActionExecutor final : public AdminActionExecutor {
   bool support_admin_to_player{true};
   bool support_player_to_admin{true};
   bool support_player_to_location{true};
+  std::string runtime_unsupported_reason{"runtime_support_unavailable"};
   std::atomic<int> executions{0};
   AdminActionRequest last_request;
   AdminActionExecutionResult next_result{
@@ -302,7 +308,7 @@ void test_http_endpoints_and_shutdown() {
   httplib::Headers headers{{"Authorization", "Bearer test-token"}};
   const auto version = client.Get("/palcenter/v1/version", headers);
   expect(version && version->status == 200, "Version endpoint should respond");
-  expect(version->body.find("\"applicationVersion\":\"0.3.1\"") != std::string::npos,
+  expect(version->body.find("\"applicationVersion\":\"0.3.2\"") != std::string::npos,
          "Version response should include the application version");
   expect(version->body.find("\"compatibility\":") != std::string::npos,
          "Version response should include informational compatibility");
@@ -455,7 +461,7 @@ void test_application_configuration_and_logging() {
       return message.find(expected) != std::string::npos;
     });
   };
-  expect(contains("PalCenter Companion v0.3.1"), "Startup should log the version");
+  expect(contains("PalCenter Companion v0.3.2"), "Startup should log the version");
   expect(contains("Companion initialized"), "Startup should log initialization");
   expect(contains("Listening on 127.0.0.1:"), "Startup should log the listener");
   expect(contains("API Version v1"), "Startup should log the API version");
@@ -692,6 +698,17 @@ void test_admin_actions_contract_dispatch_and_audit() {
              partial_capabilities.find("\"teleportPlayerToLocation\":false") !=
                  std::string::npos,
          "Independent gates should produce independent capability flags");
+
+  executor->support_player_to_location = false;
+  executor->runtime_unsupported_reason = "safe_floor_function_unavailable";
+  const auto runtime_capabilities = service->capabilities_json();
+  expect(runtime_capabilities.find("\"teleportPlayerToLocation\":false") !=
+             std::string::npos &&
+             runtime_capabilities.find(
+                 "\"teleportPlayerToLocation\":\"safe_floor_function_unavailable\"") !=
+                 std::string::npos,
+         "Capabilities should expose a concise additive runtime diagnostic code");
+  executor->support_player_to_location = true;
 
   executor->next_result = {true, {}, "Teleport completed.", "palpagos", "palpagos",
                            WorldPoint{100.0, 200.0, 300.0}};
