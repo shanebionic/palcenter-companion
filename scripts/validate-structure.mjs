@@ -13,6 +13,7 @@ const requiredPaths = [
   "extension/dllmain.cpp",
   "include/palcenter_companion/application.hpp",
   "src/application.cpp",
+  "src/admin_actions.cpp",
   "src/http_server.cpp",
   "tests/companion_tests.cpp",
   "scripts/build-production.ps1",
@@ -30,6 +31,8 @@ const requiredPaths = [
   "docs/EVENT-MODEL.md",
   "docs/REAL-TIME.md",
   "docs/COORDINATE-SPACES.md",
+  "docs/ADMIN-ACTIONS.md",
+  "docs/ADMIN-ACTIONS-UAT.md",
   "api/openapi.yaml",
   "examples/capabilities.json",
   ".github/workflows/validation.yml",
@@ -59,6 +62,9 @@ for (const requiredText of [
   "  /health:",
   "  /version:",
   "  /capabilities:",
+  "  /admin-actions/teleport-admin-to-player:",
+  "  /admin-actions/teleport-player-to-admin:",
+  "  /admin-actions/teleport-player-to-location:",
 ]) {
   if (!apiContract.includes(requiredText)) {
     errors.push(`OpenAPI contract is missing: ${requiredText.trim()}`);

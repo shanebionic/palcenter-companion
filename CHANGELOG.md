@@ -4,6 +4,14 @@ All notable changes to PalCenter Companion will be documented here. This project
 
 ## [Unreleased]
 
+### Added
+
+- Independently negotiated, authenticated administrator teleport actions.
+- Default-off global and per-action configuration gates.
+- Durable bounded teleport audit and retained idempotency records.
+- Game-thread dispatch with live-player, coordinate-space, and safe-placement checks.
+- Focused automated coverage and a packaged administrator UAT guide.
+
 ## [0.1.0] - 2026-08-02
 
 ### Added

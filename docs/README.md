@@ -1,6 +1,8 @@
 # Documentation
 
-PalCenter Companion v0.1.0 includes an embedded discovery runtime and UE4SS lifecycle adapter. Gameplay and real-time designs remain future contracts.
+PalCenter Companion v0.3.0 includes the embedded discovery runtime, UE4SS
+lifecycle adapter, player activity and location reads, and default-off admin
+teleport actions. Real-time streaming remains a future contract.
 
 - [Architecture](ARCHITECTURE.md)
 - [Installation and startup](INSTALLATION.md)
@@ -13,5 +15,7 @@ PalCenter Companion v0.1.0 includes an embedded discovery runtime and UE4SS life
 - [Event model](EVENT-MODEL.md)
 - [Real-time stream](REAL-TIME.md)
 - [Coordinate spaces](COORDINATE-SPACES.md)
+- [Admin teleport actions](ADMIN-ACTIONS.md)
+- [Admin teleport UAT](ADMIN-ACTIONS-UAT.md)
 - [Guiding principles](PRINCIPLES.md)
 - [OpenAPI contract](../api/openapi.yaml)

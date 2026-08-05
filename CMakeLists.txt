@@ -38,9 +38,18 @@ set(HTTPLIB_USE_BROTLI_IF_AVAILABLE OFF CACHE BOOL "" FORCE)
 set(HTTPLIB_USE_OPENSSL_IF_AVAILABLE OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(cpp_httplib)
 
+FetchContent_Declare(
+  nlohmann_json
+  URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz
+  URL_HASH SHA256=42f6e95cad6ec532fd372391373363b62a14af6d771056dbfc86160e6dfff7aa
+  DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+FetchContent_MakeAvailable(nlohmann_json)
+
 add_library(
   palcenter_companion_core
   STATIC
+  src/admin_actions.cpp
   src/application.cpp
   src/authentication.cpp
   src/config.cpp
@@ -49,7 +58,7 @@ add_library(
   src/player_location.cpp
 )
 target_include_directories(palcenter_companion_core PUBLIC include)
-target_link_libraries(palcenter_companion_core PUBLIC httplib::httplib)
+target_link_libraries(palcenter_companion_core PUBLIC httplib::httplib nlohmann_json::nlohmann_json)
 if(WIN32)
   target_link_libraries(palcenter_companion_core PUBLIC bcrypt)
 endif()
@@ -162,6 +171,7 @@ if(NOT PALCENTER_UE4SS_BUILD_MODE STREQUAL "OFF")
   install(FILES config/PalCenterCompanion.ini DESTINATION PalCenterCompanion/config)
   install(FILES extension/enabled.txt DESTINATION PalCenterCompanion)
   install(FILES packaging/README.txt DESTINATION PalCenterCompanion)
+  install(FILES docs/ADMIN-ACTIONS-UAT.md DESTINATION PalCenterCompanion)
   install(FILES packaging/LICENSES/THIRD-PARTY-NOTICES.txt DESTINATION PalCenterCompanion/LICENSES)
 endif()
 

@@ -2,6 +2,9 @@
 
 This directory contains machine-readable PalCenter Companion API contracts.
 
-- [openapi.yaml](openapi.yaml) defines the initial HTTP discovery interface.
+- [openapi.yaml](openapi.yaml) defines discovery, activity, location, and
+  administrator-action interfaces.
 
-The three discovery endpoints are implemented in v0.1.0. No gameplay service is implemented. The API version (`v1`) evolves independently from the Companion application version (`0.1.0`).
+The API version (`v1`) evolves independently from the Companion application
+version (`0.3.0`). Privileged gameplay mutation is disabled by default and
+independently capability-negotiated.

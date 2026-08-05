@@ -58,7 +58,10 @@ std::string load_or_create_instance_id(const std::filesystem::path& config_path)
   return id.str();
 }
 
-CompanionApplication::CompanionApplication(LogSink log_sink) : log_sink_(std::move(log_sink)) {}
+CompanionApplication::CompanionApplication(
+    LogSink log_sink, std::shared_ptr<AdminActionExecutor> admin_action_executor)
+    : log_sink_(std::move(log_sink)),
+      admin_action_executor_(std::move(admin_action_executor)) {}
 
 CompanionApplication::~CompanionApplication() { shutdown(); }
 
@@ -96,9 +99,13 @@ bool CompanionApplication::initialize(const std::filesystem::path& config_path) 
     activity_buffer_ = std::make_shared<PlayerActivityBuffer>();
     location_store_ = std::make_shared<PlayerLocationStore>();
     session_tracker_ = std::make_unique<PlayerSessionTracker>(instance_id, *activity_buffer_);
+    admin_actions_ = std::make_shared<AdminActionService>(
+        config, admin_action_executor_,
+        config_path.parent_path() / "PalCenterCompanion.teleport-audit.jsonl",
+        filtered_log_sink);
     http_server_ = std::make_unique<CompanionHttpServer>(
         config, filtered_log_sink, instance_id, load_or_create_api_token(config_path),
-        activity_buffer_, location_store_);
+        activity_buffer_, location_store_, admin_actions_);
     if (!http_server_->start()) {
       http_server_.reset();
       return false;
@@ -118,6 +125,7 @@ bool CompanionApplication::initialize(const std::filesystem::path& config_path) 
     session_tracker_.reset();
     activity_buffer_.reset();
     location_store_.reset();
+    admin_actions_.reset();
     runtime_log_sink_ = {};
     return false;
   }
@@ -128,13 +136,24 @@ void CompanionApplication::update_player_location(PlayerLocation location) noexc
   if (location_store_) location_store_->update(std::move(location));
 }
 
+void CompanionApplication::process_pending_admin_actions() noexcept {
+  std::shared_ptr<AdminActionService> admin_actions;
+  {
+    std::scoped_lock lock(lifecycle_mutex_);
+    admin_actions = admin_actions_;
+  }
+  if (admin_actions) admin_actions->process_pending();
+}
+
 void CompanionApplication::shutdown() noexcept {
   std::scoped_lock lock(lifecycle_mutex_);
   if (http_server_) {
+    if (admin_actions_) admin_actions_->shutdown();
     http_server_->stop();
     http_server_.reset();
     session_tracker_.reset();
     activity_buffer_.reset();
+    admin_actions_.reset();
     if (runtime_log_sink_) {
       runtime_log_sink_(LogLevel::information, "Companion stopped");
     }

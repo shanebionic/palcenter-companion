@@ -65,21 +65,22 @@ std::string activity_response(std::vector<PlayerActivityRecord> records) {
   return output;
 }
 
-constexpr std::string_view capabilities_response{
-    R"({"schemaVersion":"1","categories":{"events":{"supported":false,"capabilityVersion":"1"},"playerActivity":{"supported":true,"capabilityVersion":"1"},"playerLocations":{"supported":true,"capabilityVersion":"1"},"coordinateSpaces":{"supported":true,"capabilityVersion":"1"},"guilds":{"supported":false,"capabilityVersion":"1"},"bases":{"supported":false,"capabilityVersion":"1"},"performance":{"supported":false,"capabilityVersion":"1"},"moderation":{"supported":false,"capabilityVersion":"1"},"administration":{"supported":false,"capabilityVersion":"1"},"health":{"supported":true,"capabilityVersion":"1"},"version":{"supported":true,"capabilityVersion":"1"}}})"};
+constexpr std::string_view capabilities_without_admin_actions{
+    R"({"schemaVersion":"1","categories":{"events":{"supported":false,"capabilityVersion":"1"},"playerActivity":{"supported":true,"capabilityVersion":"1"},"playerLocations":{"supported":true,"capabilityVersion":"1"},"coordinateSpaces":{"supported":true,"capabilityVersion":"1"},"adminActions":{"supported":false,"capabilityVersion":"1","actions":{"teleportAdminToPlayer":false,"teleportPlayerToAdmin":false,"teleportPlayerToLocation":false}},"guilds":{"supported":false,"capabilityVersion":"1"},"bases":{"supported":false,"capabilityVersion":"1"},"performance":{"supported":false,"capabilityVersion":"1"},"moderation":{"supported":false,"capabilityVersion":"1"},"administration":{"supported":false,"capabilityVersion":"1"},"health":{"supported":true,"capabilityVersion":"1"},"version":{"supported":true,"capabilityVersion":"1"}}})"};
 
 }  // namespace
 
 CompanionHttpServer::CompanionHttpServer(CompanionConfig config, LogSink log_sink,
                                          std::string instance_id, std::string api_token,
                                          std::shared_ptr<PlayerActivityBuffer> activity,
-                                         std::shared_ptr<PlayerLocationStore> locations)
+                                         std::shared_ptr<PlayerLocationStore> locations,
+                                         std::shared_ptr<AdminActionService> admin_actions)
     : config_(std::move(config)),
       log_sink_(std::move(log_sink)),
       server_(std::make_unique<httplib::Server>()), instance_id_(std::move(instance_id)),
       api_token_(std::move(api_token)), activity_(std::move(activity)),
-      locations_(std::move(locations)) {
-  server_->set_payload_max_length(1024);
+      locations_(std::move(locations)), admin_actions_(std::move(admin_actions)) {
+  server_->set_payload_max_length(4096);
   server_->set_read_timeout(5, 0);
   server_->set_write_timeout(5, 0);
   server_->set_keep_alive_max_count(10);
@@ -163,9 +164,11 @@ void CompanionHttpServer::register_routes() {
     if (!authenticated(request, response)) return;
     response.set_content(version_response(instance_id_, started_at_), std::string(json_content_type));
   });
-  server_->Get("/palcenter/v1/capabilities", [authenticated](const httplib::Request& request, httplib::Response& response) {
+  server_->Get("/palcenter/v1/capabilities", [authenticated, this](const httplib::Request& request, httplib::Response& response) {
     if (!authenticated(request, response)) return;
-    response.set_content(std::string(capabilities_response), std::string(json_content_type));
+    response.set_content(admin_actions_ ? admin_actions_->capabilities_json()
+                                        : std::string(capabilities_without_admin_actions),
+                         std::string(json_content_type));
   });
   server_->Get("/palcenter/v1/activity", [authenticated, this](const httplib::Request& request, httplib::Response& response) {
     if (!authenticated(request, response)) return;
@@ -214,6 +217,36 @@ void CompanionHttpServer::register_routes() {
     if (!authenticated(request, response)) return;
     response.set_content(player_locations_json(locations_->current()), std::string(json_content_type));
   });
+  const auto admin_action = [authenticated, this](const AdminActionKind action,
+                                                   const httplib::Request& request,
+                                                   httplib::Response& response) {
+    if (!authenticated(request, response)) {
+      if (admin_actions_) admin_actions_->audit_authentication_rejection(action, request.body);
+      return;
+    }
+    if (!admin_actions_) {
+      response.status = 501;
+      response.set_content(
+          R"({"error":"action_not_supported","message":"The installed Companion cannot execute admin actions."})",
+          std::string(json_content_type));
+      return;
+    }
+    const auto result = admin_actions_->handle(action, request.body);
+    response.status = result.http_status;
+    response.set_content(result.json(), std::string(json_content_type));
+  };
+  server_->Post("/palcenter/v1/admin-actions/teleport-admin-to-player",
+                [admin_action](const httplib::Request& request, httplib::Response& response) {
+                  admin_action(AdminActionKind::teleport_admin_to_player, request, response);
+                });
+  server_->Post("/palcenter/v1/admin-actions/teleport-player-to-admin",
+                [admin_action](const httplib::Request& request, httplib::Response& response) {
+                  admin_action(AdminActionKind::teleport_player_to_admin, request, response);
+                });
+  server_->Post("/palcenter/v1/admin-actions/teleport-player-to-location",
+                [admin_action](const httplib::Request& request, httplib::Response& response) {
+                  admin_action(AdminActionKind::teleport_player_to_location, request, response);
+                });
 }
 
 }  // namespace palcenter::companion

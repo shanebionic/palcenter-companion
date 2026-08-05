@@ -27,7 +27,8 @@ Only the `health` and `version` discovery capabilities are supported in this mil
 | `bases` | Authoritative base information is available. |
 | `performance` | Companion-sourced server performance data is available. |
 | `moderation` | Companion moderation operations are available. |
-| `administration` | Companion administration operations are available. |
+| `administration` | Reserved broad administration category; currently false. |
+| `adminActions` | Independently negotiated privileged action interfaces are available. |
 | `health` | Structured health information is available. |
 | `version` | Build and compatibility information is available. |
 
@@ -44,3 +45,9 @@ Only the `health` and `version` discovery capabilities are supported in this mil
 Capability identifiers are permanent: they are never renamed or removed, and new identifiers are added only. Consumers must treat missing or malformed entries as unsupported and ignore unknown categories and metadata for forward compatibility.
 
 Capabilities describe currently usable interfaces, not roadmap promises. Capability negotiation takes precedence over informational application-version compatibility.
+
+The `adminActions` entry contains an `actions` object with permanent Boolean
+identifiers: `teleportAdminToPlayer`, `teleportPlayerToAdmin`, and
+`teleportPlayerToLocation`. An identifier is true only when configuration
+enables it and the installed runtime has probed the required game integration.
+Consumers must check the individual action rather than the family-level summary.

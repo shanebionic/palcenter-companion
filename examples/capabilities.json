@@ -3,5 +3,10 @@
   "guilds": false,
   "bases": false,
   "performance": false,
-  "moderation": false
+  "moderation": false,
+  "adminActions": {
+    "teleportAdminToPlayer": false,
+    "teleportPlayerToAdmin": false,
+    "teleportPlayerToLocation": false
+  }
 }

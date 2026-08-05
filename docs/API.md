@@ -89,6 +89,26 @@ Requires `Authorization: Bearer <token>`.
 
 See [capability negotiation](CAPABILITIES.md) for consumer behavior.
 
+## Admin teleport actions
+
+The authenticated endpoints below synchronously return the one game-thread
+dispatch result. They require a caller-generated unique `requestId`, the
+administrator character's stable 32-digit `administratorPlayerId`, and the
+target's stable `targetPlayerId`.
+
+- `POST /palcenter/v1/admin-actions/teleport-admin-to-player`
+- `POST /palcenter/v1/admin-actions/teleport-player-to-admin`
+- `POST /palcenter/v1/admin-actions/teleport-player-to-location`
+
+Location requests also require finite `x`, `y`, and `z`, `coordinateSpace` set
+to `palpagos`, and `verification` set to `palpagos_map`. World Tree and every
+special-area coordinate space are rejected. A successful retry returns the
+original result with `replayed: true` and does not move the character again.
+
+Actions are independently advertised and are unavailable until both the global
+privileged gate and the matching action gate are enabled. See the
+[machine-readable contract](../api/openapi.yaml) and [UAT guide](ADMIN-ACTIONS-UAT.md).
+
 ## Compatibility rules
 
 - Additive response fields may be introduced within API v1.

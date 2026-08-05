@@ -9,5 +9,7 @@
 4. Start PalServer. The API token is stored in
    `PalCenterCompanion/config/PalCenterCompanion.token` after first startup.
 5. Verify it is running with `http://<bind-address>:<port>/palcenter/v1/health`.
-6. To remove it after testing, stop PalServer and delete the `PalCenterCompanion`
+6. Keep all admin-action settings disabled unless following
+   `ADMIN-ACTIONS-UAT.md` on a private test server.
+7. To remove it after testing, stop PalServer and delete the `PalCenterCompanion`
    folder. Do not delete `PalDefender` or `Offline Raid Protection`.

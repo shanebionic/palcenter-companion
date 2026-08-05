@@ -1,5 +1,6 @@
 #pragma once
 
+#include "palcenter_companion/admin_actions.hpp"
 #include "palcenter_companion/config.hpp"
 #include "palcenter_companion/logger.hpp"
 #include "palcenter_companion/player_activity.hpp"
@@ -26,7 +27,8 @@ class CompanionHttpServer final {
                       std::shared_ptr<PlayerActivityBuffer> activity =
                           std::make_shared<PlayerActivityBuffer>(),
                       std::shared_ptr<PlayerLocationStore> locations =
-                          std::make_shared<PlayerLocationStore>());
+                          std::make_shared<PlayerLocationStore>(),
+                      std::shared_ptr<AdminActionService> admin_actions = {});
   ~CompanionHttpServer();
 
   CompanionHttpServer(const CompanionHttpServer&) = delete;
@@ -50,6 +52,7 @@ class CompanionHttpServer final {
   std::string api_token_;
   std::shared_ptr<PlayerActivityBuffer> activity_;
   std::shared_ptr<PlayerLocationStore> locations_;
+  std::shared_ptr<AdminActionService> admin_actions_;
   mutable std::mutex lifecycle_mutex_;
 };
 

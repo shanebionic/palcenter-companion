@@ -1,4 +1,5 @@
 #include "palcenter_companion/application.hpp"
+#include "palcenter_companion/admin_actions.hpp"
 #include "palcenter_companion/authentication.hpp"
 #include "palcenter_companion/config.hpp"
 #include "palcenter_companion/http_server.hpp"
@@ -18,6 +19,7 @@
 #endif
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -30,6 +32,11 @@
 namespace {
 
 using palcenter::companion::CompanionApplication;
+using palcenter::companion::AdminActionExecutionResult;
+using palcenter::companion::AdminActionExecutor;
+using palcenter::companion::AdminActionKind;
+using palcenter::companion::AdminActionRequest;
+using palcenter::companion::AdminActionService;
 using palcenter::companion::CompanionConfig;
 using palcenter::companion::CompanionHttpServer;
 using palcenter::companion::LogLevel;
@@ -39,6 +46,58 @@ using palcenter::companion::PlayerSessionTracker;
 using palcenter::companion::PlayerAreaKind;
 using palcenter::companion::PlayerLocation;
 using palcenter::companion::PlayerLocationStore;
+using palcenter::companion::WorldPoint;
+
+class FakeAdminActionExecutor final : public AdminActionExecutor {
+ public:
+  [[nodiscard]] bool supports(const AdminActionKind action) const noexcept override {
+    switch (action) {
+      case AdminActionKind::teleport_admin_to_player:
+        return support_admin_to_player;
+      case AdminActionKind::teleport_player_to_admin:
+        return support_player_to_admin;
+      case AdminActionKind::teleport_player_to_location:
+        return support_player_to_location;
+    }
+    return false;
+  }
+
+  AdminActionExecutionResult execute(const AdminActionRequest& request) noexcept override {
+    ++executions;
+    last_request = request;
+    return next_result;
+  }
+
+  bool support_admin_to_player{true};
+  bool support_player_to_admin{true};
+  bool support_player_to_location{true};
+  std::atomic<int> executions{0};
+  AdminActionRequest last_request;
+  AdminActionExecutionResult next_result{
+      true, {}, "Teleport completed.", "palpagos", "palpagos",
+      WorldPoint{100.0, 200.0, 300.0}};
+};
+
+class AdminActionPump final {
+ public:
+  explicit AdminActionPump(std::shared_ptr<AdminActionService> service)
+      : service_(std::move(service)), thread_([this] {
+          while (!stopping_) {
+            service_->process_pending();
+            std::this_thread::sleep_for(std::chrono::milliseconds{1});
+          }
+        }) {}
+
+  ~AdminActionPump() {
+    stopping_ = true;
+    thread_.join();
+  }
+
+ private:
+  std::shared_ptr<AdminActionService> service_;
+  std::atomic<bool> stopping_{false};
+  std::thread thread_;
+};
 
 class OccupiedPort final {
  public:
@@ -155,12 +214,20 @@ void test_configuration() {
   expect(defaults.port == 8213, "Default port should be 8213");
   expect(defaults.log_level == LogLevel::information,
          "Default log level should be Information");
+  expect(!defaults.admin_actions_enabled && !defaults.teleport_admin_to_player_enabled &&
+             !defaults.teleport_player_to_admin_enabled &&
+             !defaults.teleport_player_to_location_enabled,
+         "Privileged admin actions must be disabled by default");
 
   const auto path = temporary_config(R"([Companion]
 Enabled=false
 BindAddress=0.0.0.0
 Port=9123
 LogLevel=Warning
+AdminActionsEnabled=true
+TeleportAdminToPlayerEnabled=true
+TeleportPlayerToAdminEnabled=false
+TeleportPlayerToLocationEnabled=true
 )");
   const auto config = palcenter::companion::load_config(path);
   std::filesystem::remove(path);
@@ -169,6 +236,10 @@ LogLevel=Warning
   expect(config.bind_address == "0.0.0.0", "BindAddress should load");
   expect(config.port == 9123, "Port should load");
   expect(config.log_level == LogLevel::warning, "LogLevel should load");
+  expect(config.admin_actions_enabled && config.teleport_admin_to_player_enabled &&
+             !config.teleport_player_to_admin_enabled &&
+             config.teleport_player_to_location_enabled,
+         "Admin-action gates should load independently");
 
   const auto invalid_path = temporary_config("[Companion]\nPort=0\n");
   expect_throws(
@@ -260,6 +331,9 @@ void test_http_endpoints_and_shutdown() {
   expect(capabilities->body.find("\"playerLocations\":{\"supported\":true") !=
              std::string::npos,
          "Player locations capability should be advertised");
+  expect(capabilities->body.find("\"teleportAdminToPlayer\":false") !=
+             std::string::npos,
+         "Default configuration must not advertise privileged actions");
 
   const auto missing_activity_auth = client.Get("/palcenter/v1/activity");
   expect(missing_activity_auth && missing_activity_auth->status == 401,
@@ -446,6 +520,193 @@ void test_occupied_port_and_repeated_cycles() {
   }
 }
 
+void test_admin_actions_contract_dispatch_and_audit() {
+  const auto directory = std::filesystem::temp_directory_path() /
+                         ("palcenter-admin-actions-test-" + std::to_string(
+                              std::chrono::steady_clock::now().time_since_epoch().count()));
+  std::filesystem::create_directories(directory);
+  const auto audit_path = directory / "teleport-audit.jsonl";
+  const std::string administrator(32, 'A');
+  const std::string target(32, 'B');
+  const std::string other_target(32, 'C');
+  const auto player_body = [&](const std::string_view request_id,
+                               const std::string& target_id = std::string(32, 'B')) {
+    return "{\"requestId\":\"" + std::string(request_id) +
+           "\",\"administratorPlayerId\":\"" + administrator +
+           "\",\"targetPlayerId\":\"" + target_id + "\"}";
+  };
+  const auto location_body = [&](const std::string_view request_id,
+                                 const std::string_view coordinate_space,
+                                 const std::string_view x = "100") {
+    return "{\"requestId\":\"" + std::string(request_id) +
+           "\",\"administratorPlayerId\":\"" + administrator +
+           "\",\"targetPlayerId\":\"" + target +
+           "\",\"destination\":{\"coordinateSpace\":\"" +
+           std::string(coordinate_space) +
+           "\",\"verification\":\"palpagos_map\",\"x\":" + std::string(x) +
+           ",\"y\":200,\"z\":300}}";
+  };
+
+  CompanionConfig enabled;
+  enabled.admin_actions_enabled = true;
+  enabled.teleport_admin_to_player_enabled = true;
+  enabled.teleport_player_to_admin_enabled = true;
+  enabled.teleport_player_to_location_enabled = true;
+  auto executor = std::make_shared<FakeAdminActionExecutor>();
+  auto service = std::make_shared<AdminActionService>(
+      enabled, executor, audit_path, [](const LogLevel, const std::string_view) {}, 64 * 1024);
+  AdminActionPump pump(service);
+
+  const auto capabilities = service->capabilities_json();
+  expect(capabilities.find("\"teleportAdminToPlayer\":true") != std::string::npos &&
+             capabilities.find("\"teleportPlayerToAdmin\":true") != std::string::npos &&
+             capabilities.find("\"teleportPlayerToLocation\":true") != std::string::npos,
+         "Capabilities should advertise each executable enabled action independently");
+
+  const auto first = service->handle(AdminActionKind::teleport_admin_to_player,
+                                     player_body("request-success-001"));
+  expect(first.http_status == 200 && first.status == "succeeded" && !first.replayed,
+         "A valid action should dispatch successfully");
+  expect(executor->executions == 1, "A successful action should execute exactly once");
+  expect(executor->last_request.administrator_player_id == administrator &&
+             executor->last_request.target_player_id == target,
+         "Dispatch should use stable player IDs from the request");
+
+  const auto replay = service->handle(AdminActionKind::teleport_admin_to_player,
+                                      player_body("request-success-001"));
+  expect(replay.http_status == 200 && replay.replayed,
+         "An identical retry should return the original result as a replay");
+  expect(executor->executions == 1, "An idempotent retry must not execute twice");
+
+  const auto conflict = service->handle(AdminActionKind::teleport_admin_to_player,
+                                        player_body("request-success-001", other_target));
+  expect(conflict.http_status == 409 && conflict.error == "idempotency_conflict",
+         "Reusing a request ID for another payload should be rejected");
+  expect(executor->executions == 1, "An idempotency conflict must not dispatch");
+
+  const auto unsupported_space = service->handle(
+      AdminActionKind::teleport_player_to_location,
+      location_body("request-world-tree-001", "world_tree"));
+  expect(unsupported_space.http_status == 400 &&
+             unsupported_space.error == "unsupported_coordinate_space",
+         "World Tree and unsupported coordinate spaces should be rejected");
+  const auto invalid_coordinate = service->handle(
+      AdminActionKind::teleport_player_to_location,
+      location_body("request-invalid-coordinate-001", "palpagos", "\"not-finite\""));
+  expect(invalid_coordinate.http_status == 400 &&
+             invalid_coordinate.error == "invalid_coordinates",
+         "Malformed coordinates should be rejected");
+  const auto out_of_range = service->handle(
+      AdminActionKind::teleport_player_to_location,
+      location_body("request-out-of-range-001", "palpagos", "999999"));
+  expect(out_of_range.http_status == 400 &&
+             out_of_range.error == "coordinates_out_of_range",
+         "Coordinates outside verified Palpagos bounds should be rejected");
+  expect(executor->executions == 1, "Validation failures must not reach gameplay dispatch");
+
+  executor->next_result = {false, "player_offline", "The target character is not online.",
+                           {}, {}, std::nullopt};
+  const auto offline = service->handle(AdminActionKind::teleport_player_to_admin,
+                                       player_body("request-offline-001"));
+  expect(offline.http_status == 409 && offline.error == "player_offline",
+         "Offline players should be rejected without retry");
+  expect(executor->executions == 2, "An offline result should be attempted only once");
+
+  executor->next_result = {false, "safe_destination_unavailable",
+                           "The game could not resolve a safe land destination.",
+                           "palpagos", "palpagos", std::nullopt};
+  const auto unsafe = service->handle(
+      AdminActionKind::teleport_player_to_location,
+      location_body("request-unsafe-001", "palpagos"));
+  expect(unsafe.http_status == 422 && unsafe.error == "safe_destination_unavailable",
+         "Failed safe-destination resolution should reject the action");
+  expect(executor->executions == 3, "Safe placement failure must not be retried internally");
+
+  CompanionConfig disabled = enabled;
+  disabled.admin_actions_enabled = false;
+  auto disabled_service = std::make_shared<AdminActionService>(
+      disabled, executor, directory / "disabled-audit.jsonl",
+      [](const LogLevel, const std::string_view) {});
+  const auto disabled_response = disabled_service->handle(
+      AdminActionKind::teleport_admin_to_player, player_body("request-disabled-001"));
+  expect(disabled_response.http_status == 403 &&
+             disabled_response.error == "admin_action_disabled",
+         "The privileged global configuration gate should fail closed");
+  expect(disabled_service->capabilities_json().find("\"teleportAdminToPlayer\":false") !=
+             std::string::npos,
+         "Disabled actions must not be advertised");
+
+  CompanionConfig partial = enabled;
+  partial.teleport_player_to_admin_enabled = false;
+  partial.teleport_player_to_location_enabled = false;
+  auto partial_service = std::make_shared<AdminActionService>(
+      partial, executor, directory / "partial-audit.jsonl",
+      [](const LogLevel, const std::string_view) {});
+  const auto partial_capabilities = partial_service->capabilities_json();
+  expect(partial_capabilities.find("\"teleportAdminToPlayer\":true") != std::string::npos &&
+             partial_capabilities.find("\"teleportPlayerToAdmin\":false") !=
+                 std::string::npos &&
+             partial_capabilities.find("\"teleportPlayerToLocation\":false") !=
+                 std::string::npos,
+         "Independent gates should produce independent capability flags");
+
+  executor->next_result = {true, {}, "Teleport completed.", "palpagos", "palpagos",
+                           WorldPoint{100.0, 200.0, 300.0}};
+  CompanionConfig http_config = enabled;
+  http_config.port = 0;
+  CompanionHttpServer server(http_config, [](const LogLevel, const std::string_view) {},
+                             "admin-http-test", "test-token",
+                             std::make_shared<PlayerActivityBuffer>(),
+                             std::make_shared<PlayerLocationStore>(), service);
+  expect(server.start(), "Admin-action HTTP fixture should start");
+  httplib::Client client("127.0.0.1", server.bound_port());
+  const auto action_path = "/palcenter/v1/admin-actions/teleport-admin-to-player";
+  const auto unauthenticated =
+      client.Post(action_path, player_body("request-auth-001"), "application/json");
+  expect(unauthenticated && unauthenticated->status == 401,
+         "Every admin-action endpoint should require existing bearer authentication");
+  const httplib::Headers headers{{"Authorization", "Bearer test-token"}};
+  const auto authenticated = client.Post(action_path, headers,
+                                         player_body("request-auth-001"), "application/json");
+  expect(authenticated && authenticated->status == 200 &&
+             authenticated->body.find("\"status\":\"succeeded\"") != std::string::npos,
+         "An authenticated action should return a structured success response");
+  server.stop();
+
+  std::ifstream audit_input(audit_path);
+  const std::string audit_content((std::istreambuf_iterator<char>(audit_input)),
+                                  std::istreambuf_iterator<char>());
+  for (const auto& required : {"\"timestamp\"", "\"requestId\"", "\"action\"",
+                               "\"administratorPlayerId\"", "\"targetPlayerId\"",
+                               "\"sourceCoordinateSpace\"",
+                               "\"destinationCoordinateSpace\"",
+                               "\"requestedDestination\"", "\"result\"",
+                               "\"failureReason\""}) {
+    expect(audit_content.find(required) != std::string::npos,
+           "Audit records should contain all required fields");
+  }
+  expect(audit_content.find("test-token") == std::string::npos,
+         "Audit records must never contain authentication tokens");
+  expect(audit_content.find("authentication_required") != std::string::npos,
+         "Rejected authentication attempts should be present in the action audit");
+  audit_input.close();
+
+  service->shutdown();
+  disabled_service->shutdown();
+  partial_service->shutdown();
+  auto restart_executor = std::make_shared<FakeAdminActionExecutor>();
+  auto restarted_service = std::make_shared<AdminActionService>(
+      enabled, restart_executor, audit_path, [](const LogLevel, const std::string_view) {},
+      64 * 1024);
+  const auto durable_replay = restarted_service->handle(
+      AdminActionKind::teleport_admin_to_player, player_body("request-success-001"));
+  expect(durable_replay.replayed && durable_replay.http_status == 200 &&
+             restart_executor->executions == 0,
+         "Retained audit records should preserve idempotency across restarts");
+  restarted_service->shutdown();
+  std::filesystem::remove_all(directory);
+}
+
 void test_private_bind_warning() {
   CompanionConfig config;
   config.bind_address = "0.0.0.0";
@@ -483,6 +744,7 @@ int main() {
     test_port_binding_failure_is_contained();
     test_disabled_configuration();
     test_occupied_port_and_repeated_cycles();
+    test_admin_actions_contract_dispatch_and_audit();
     test_private_bind_warning();
     std::cout << "All PalCenter Companion tests passed.\n";
     return 0;

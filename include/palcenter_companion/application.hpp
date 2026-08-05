@@ -1,5 +1,6 @@
 #pragma once
 
+#include "palcenter_companion/admin_actions.hpp"
 #include "palcenter_companion/http_server.hpp"
 
 #include <filesystem>
@@ -11,7 +12,8 @@ namespace palcenter::companion {
 
 class CompanionApplication final {
  public:
-  explicit CompanionApplication(LogSink log_sink);
+  explicit CompanionApplication(LogSink log_sink,
+                                std::shared_ptr<AdminActionExecutor> admin_action_executor = {});
   ~CompanionApplication();
 
   CompanionApplication(const CompanionApplication&) = delete;
@@ -23,6 +25,7 @@ class CompanionApplication final {
   bool player_joined(const PlayerIdentity& player) noexcept;
   bool player_left(std::string_view stable_player_key) noexcept;
   void update_player_location(PlayerLocation location) noexcept;
+  void process_pending_admin_actions() noexcept;
 
  private:
   LogSink log_sink_;
@@ -30,6 +33,8 @@ class CompanionApplication final {
   std::unique_ptr<CompanionHttpServer> http_server_;
   std::shared_ptr<PlayerActivityBuffer> activity_buffer_;
   std::shared_ptr<PlayerLocationStore> location_store_;
+  std::shared_ptr<AdminActionExecutor> admin_action_executor_;
+  std::shared_ptr<AdminActionService> admin_actions_;
   std::unique_ptr<PlayerSessionTracker> session_tracker_;
   mutable std::mutex lifecycle_mutex_;
   bool initialization_attempted_{false};
