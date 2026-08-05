@@ -80,7 +80,7 @@ class PalCenterCompanionMod final : public RC::CppUserModBase, public AdminActio
  public:
   PalCenterCompanionMod() {
     ModName = STR("PalCenter Companion");
-    ModVersion = STR("0.3.0");
+    ModVersion = STR("0.3.1");
     ModDescription = STR("Optional authoritative server extension for PalCenter");
     ModAuthors = STR("PalCenter Companion contributors");
   }
@@ -332,10 +332,16 @@ class PalCenterCompanionMod final : public RC::CppUserModBase, public AdminActio
                 "A verified Palpagos destination was not available.", "palpagos",
                 request.destination_coordinate_space, std::nullopt};
       }
+      auto* moving_actor = pawn_actor(moving->controller);
+      if (!moving_actor) {
+        return {false, "player_state_stale", "The moving character is no longer available.",
+                "palpagos", "palpagos", std::nullopt};
+      }
+      const auto runtime_location = moving_actor->K2_GetActorLocation();
       RC::Unreal::FVector requested(request.requested_destination->x,
                                     request.requested_destination->y,
-                                    request.requested_destination->z);
-      if (!resolve_safe_floor(pawn_actor(moving->controller), requested, destination) ||
+                                    runtime_location.Z());
+      if (!resolve_safe_floor(moving_actor, requested, destination) ||
           is_below_ocean_plane(moving->controller, destination)) {
         return {false, "safe_destination_unavailable",
                 "The game could not resolve a safe land destination.", "palpagos",

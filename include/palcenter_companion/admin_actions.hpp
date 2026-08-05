@@ -29,12 +29,17 @@ struct WorldPoint {
   double z{};
 };
 
+struct MapPoint {
+  double x{};
+  double y{};
+};
+
 struct AdminActionRequest {
   std::string request_id;
   AdminActionKind action{AdminActionKind::teleport_admin_to_player};
   std::string administrator_player_id;
   std::optional<std::string> target_player_id;
-  std::optional<WorldPoint> requested_destination;
+  std::optional<MapPoint> requested_destination;
   std::string destination_coordinate_space;
 };
 

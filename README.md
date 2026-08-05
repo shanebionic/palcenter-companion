@@ -9,7 +9,7 @@ keeps players inside Palworld stage instances off the wrong map. It does not
 guess whether a special area is a dungeon, tower, arena, or the World Tree.
 
 > [!IMPORTANT]
-> Version 0.3.0 is in development. It reports player activity and locations and
+> Version 0.3.1 is in development. It reports player activity and locations and
 > adds default-off, authenticated teleport actions for controlled UAT. PalCenter
 > still works normally when the Companion is not installed.
 
@@ -40,7 +40,7 @@ The Companion is independent:
 
 ## Current scope
 
-Application version `0.3.0` provides:
+Application version `0.3.1` provides:
 
 - the separately versioned Companion API at `/palcenter/v1/`;
 - embedded discovery endpoints and bounded `GET /activity` player history;
@@ -111,7 +111,7 @@ PalCenter's intelligence engine should prefer authoritative Companion events ove
 
 ## Project status
 
-The v0.3.0 milestone is under active validation and is not released. Follow the [roadmap](ROADMAP.md) for planned milestones; roadmap items are directional and not promises of delivery dates.
+The v0.3.1 milestone is under active validation and is not released. Follow the [roadmap](ROADMAP.md) for planned milestones; roadmap items are directional and not promises of delivery dates.
 
 ## License
 

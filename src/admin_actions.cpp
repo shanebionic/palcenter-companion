@@ -21,8 +21,6 @@ constexpr double palpagos_min_x{-999'940.0};
 constexpr double palpagos_max_x{447'900.0};
 constexpr double palpagos_min_y{-738'920.0};
 constexpr double palpagos_max_y{708'920.0};
-constexpr double minimum_supported_z{-200'000.0};
-constexpr double maximum_supported_z{1'000'000.0};
 constexpr std::size_t maximum_idempotency_records{10'000};
 constexpr auto dispatch_timeout = std::chrono::seconds{5};
 
@@ -43,6 +41,8 @@ Json point_json(const WorldPoint& point) {
   return {{"x", point.x}, {"y", point.y}, {"z", point.z}};
 }
 
+Json point_json(const MapPoint& point) { return {{"x", point.x}, {"y", point.y}}; }
+
 bool valid_request_id(const std::string_view value) {
   if (value.size() < 8 || value.size() > 128) return false;
   return std::ranges::all_of(value, [](const unsigned char character) {
@@ -57,11 +57,10 @@ bool valid_player_id(const std::string_view value) {
          });
 }
 
-bool valid_point(const WorldPoint& point) {
-  return std::isfinite(point.x) && std::isfinite(point.y) && std::isfinite(point.z) &&
+bool valid_map_point(const MapPoint& point) {
+  return std::isfinite(point.x) && std::isfinite(point.y) &&
          point.x >= palpagos_min_x && point.x <= palpagos_max_x &&
-         point.y >= palpagos_min_y && point.y <= palpagos_max_y &&
-         point.z >= minimum_supported_z && point.z <= maximum_supported_z;
+         point.y >= palpagos_min_y && point.y <= palpagos_max_y;
 }
 
 std::string fingerprint(const AdminActionRequest& request) {
@@ -70,8 +69,7 @@ std::string fingerprint(const AdminActionRequest& request) {
         << request.target_player_id.value_or("") << '|' << request.destination_coordinate_space;
   if (request.requested_destination) {
     value << '|' << std::setprecision(std::numeric_limits<double>::max_digits10)
-          << request.requested_destination->x << '|' << request.requested_destination->y << '|'
-          << request.requested_destination->z;
+          << request.requested_destination->x << '|' << request.requested_destination->y;
   }
   return value.str();
 }
@@ -108,6 +106,7 @@ bool idempotency_tracked(const AdminActionResponse& response) {
          response.error != "invalid_target_player_id" &&
          response.error != "identical_players" &&
          response.error != "invalid_destination" &&
+         response.error != "legacy_location_contract" &&
          response.error != "unsupported_coordinate_space" &&
          response.error != "unverified_destination" &&
          response.error != "invalid_coordinates" &&
@@ -195,44 +194,42 @@ ParsedRequest parse_request(const AdminActionKind action, const std::string_view
                          [](const unsigned char character) {
                            return static_cast<char>(std::toupper(character));
                          });
-  if (!document.contains("destination") || !document["destination"].is_object()) {
-    parsed.error = failure(parsed.request, 400, "invalid_destination",
-                           "destination must contain verified Palpagos coordinates.");
+  if (document.contains("destination") || document.contains("z")) {
+    parsed.error = failure(
+        parsed.request, 400, "legacy_location_contract",
+        "Send coordinateSpace, x, y, and verification as top-level fields; z is not accepted.");
     return parsed;
   }
-  const auto& destination = document["destination"];
-  if (destination.contains("coordinateSpace") && destination["coordinateSpace"].is_string()) {
+  if (document.contains("coordinateSpace") && document["coordinateSpace"].is_string()) {
     parsed.request.destination_coordinate_space =
-        destination["coordinateSpace"].get<std::string>();
+        document["coordinateSpace"].get<std::string>();
   }
   if (parsed.request.destination_coordinate_space != "palpagos") {
     parsed.error = failure(parsed.request, 400, "unsupported_coordinate_space",
                            "Only the palpagos coordinate space is supported.");
     return parsed;
   }
-  if (!destination.contains("verification") || !destination["verification"].is_string() ||
-      destination["verification"].get<std::string>() != "palpagos_map") {
+  if (!document.contains("verification") || !document["verification"].is_string() ||
+      document["verification"].get<std::string>() != "palpagos_map") {
     parsed.error = failure(parsed.request, 400, "unverified_destination",
                            "The destination must be confirmed as a Palpagos map location.");
     return parsed;
   }
-  if (!destination.contains("x") || !destination.contains("y") ||
-      !destination.contains("z") || !destination["x"].is_number() ||
-      !destination["y"].is_number() || !destination["z"].is_number()) {
+  if (!document.contains("x") || !document.contains("y") ||
+      !document["x"].is_number() || !document["y"].is_number()) {
     parsed.error = failure(parsed.request, 400, "invalid_coordinates",
-                           "Destination x, y, and z must be finite numbers.");
+                           "Destination x and y must be finite numbers.");
     return parsed;
   }
   try {
-    parsed.request.requested_destination = WorldPoint{destination["x"].get<double>(),
-                                                       destination["y"].get<double>(),
-                                                       destination["z"].get<double>()};
+    parsed.request.requested_destination =
+        MapPoint{document["x"].get<double>(), document["y"].get<double>()};
   } catch (const Json::exception&) {
     parsed.error = failure(parsed.request, 400, "invalid_coordinates",
-                           "Destination x, y, and z must be finite numbers.");
+                           "Destination x and y must be finite numbers.");
     return parsed;
   }
-  if (!valid_point(*parsed.request.requested_destination)) {
+  if (!valid_map_point(*parsed.request.requested_destination)) {
     parsed.error = failure(parsed.request, 400, "coordinates_out_of_range",
                            "The destination is outside verified Palpagos bounds.");
   }
@@ -319,7 +316,7 @@ std::string AdminActionService::capabilities_json() const {
          {{"supported", advertised(AdminActionKind::teleport_admin_to_player) ||
                             advertised(AdminActionKind::teleport_player_to_admin) ||
                             advertised(AdminActionKind::teleport_player_to_location)},
-          {"capabilityVersion", "1"},
+          {"capabilityVersion", "2"},
           {"actions",
            {{"teleportAdminToPlayer",
              advertised(AdminActionKind::teleport_admin_to_player)},
@@ -627,6 +624,17 @@ void AdminActionService::load_idempotency_records() {
             record["destinationCoordinateSpace"].is_string()) {
           response.destination_coordinate_space =
               record["destinationCoordinateSpace"].get<std::string>();
+        }
+        if (record.contains("resolvedDestination") &&
+            record["resolvedDestination"].is_object()) {
+          const auto& resolved = record["resolvedDestination"];
+          if (resolved.contains("x") && resolved["x"].is_number() &&
+              resolved.contains("y") && resolved["y"].is_number() &&
+              resolved.contains("z") && resolved["z"].is_number()) {
+            response.resolved_destination =
+                WorldPoint{resolved["x"].get<double>(), resolved["y"].get<double>(),
+                           resolved["z"].get<double>()};
+          }
         }
         auto shared = std::make_shared<SharedResult>();
         shared->response = response;

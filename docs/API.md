@@ -2,11 +2,11 @@
 
 ## Status
 
-The discovery endpoints and bounded player Activity endpoint are implemented by the embedded v0.3.0 development listener. No WebSocket API is implemented.
+The discovery endpoints and bounded player Activity endpoint are implemented by the embedded v0.3.1 development listener. No WebSocket API is implemented.
 
 The API version is independent from the Companion application version:
 
-- Application version: `0.3.0`
+- Application version: `0.3.1`
 - API version: `v1`
 - Base path: `/palcenter/v1/`
 
@@ -47,7 +47,7 @@ Example response:
 ```json
 {
   "application": "palcenter-companion",
-  "applicationVersion": "0.3.0",
+  "applicationVersion": "0.3.1",
   "apiVersion": "v1",
   "buildCommit": "abc1234",
   "buildBranch": "main",
@@ -100,12 +100,16 @@ target's stable `targetPlayerId`.
 - `POST /palcenter/v1/admin-actions/teleport-player-to-admin`
 - `POST /palcenter/v1/admin-actions/teleport-player-to-location`
 
-Location requests also require finite `x`, `y`, and `z`, `coordinateSpace` set
-to `palpagos`, and `verification` set to `palpagos_map`. World Tree and every
+Location requests use top-level finite `x` and `y`, `coordinateSpace` set to
+`palpagos`, and `verification` set to `palpagos_map`. They do not accept Z;
+Companion resolves safe height from Palworld on the game thread and returns the
+final X/Y/Z in `resolvedDestination`. The old nested destination and any
+caller-provided Z return `400 legacy_location_contract`. World Tree and every
 special-area coordinate space are rejected. A successful retry returns the
 original result with `replayed: true` and does not move the character again.
 
-Actions are independently advertised and are unavailable until both the global
+Admin actions capability version `2` identifies the runtime-height location
+contract. Actions are independently advertised and are unavailable until both the global
 privileged gate and the matching action gate are enabled. See the
 [machine-readable contract](../api/openapi.yaml) and [UAT guide](ADMIN-ACTIONS-UAT.md).
 

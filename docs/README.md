@@ -1,6 +1,6 @@
 # Documentation
 
-PalCenter Companion v0.3.0 includes the embedded discovery runtime, UE4SS
+PalCenter Companion v0.3.1 includes the embedded discovery runtime, UE4SS
 lifecycle adapter, player activity and location reads, and default-off admin
 teleport actions. Real-time streaming remains a future contract.
 

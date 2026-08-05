@@ -6,5 +6,5 @@ This directory contains machine-readable PalCenter Companion API contracts.
   administrator-action interfaces.
 
 The API version (`v1`) evolves independently from the Companion application
-version (`0.3.0`). Privileged gameplay mutation is disabled by default and
+version (`0.3.1`). Privileged gameplay mutation is disabled by default and
 independently capability-negotiated.

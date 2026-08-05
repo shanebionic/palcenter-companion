@@ -48,6 +48,8 @@ Capabilities describe currently usable interfaces, not roadmap promises. Capabil
 
 The `adminActions` entry contains an `actions` object with permanent Boolean
 identifiers: `teleportAdminToPlayer`, `teleportPlayerToAdmin`, and
-`teleportPlayerToLocation`. An identifier is true only when configuration
+`teleportPlayerToLocation`. Admin actions capability version `2` identifies the
+location request that accepts verified Palpagos X/Y and resolves Z inside the
+Companion. An identifier is true only when configuration
 enables it and the installed runtime has probed the required game integration.
 Consumers must check the individual action rather than the family-level summary.
