@@ -1,0 +1,105 @@
+name: Companion UAT Package
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: uat-package-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: Production UAT package
+    runs-on: windows-2022
+    steps:
+      - name: Check out Companion
+        uses: actions/checkout@v4
+
+      - name: Check out pinned UE4SS source
+        uses: actions/checkout@v4
+        with:
+          repository: Okaetsu/RE-UE4SS
+          ref: c838a8acaade1a0f860bdf249f039e58f4e10088
+          token: ${{ secrets.UE4SS_TOKEN || github.token }}
+          submodules: false
+          path: ue4ss-source
+
+      - name: Initialize authorized UE4SS dependencies
+        shell: pwsh
+        env:
+          UE4SS_TOKEN: ${{ secrets.UE4SS_TOKEN }}
+        run: |
+          if (-not $env:UE4SS_TOKEN) {
+            throw "The UE4SS_TOKEN repository secret is required to fetch the access-controlled UEPseudo submodule."
+          }
+          $submoduleEntries = @(git -C ue4ss-source config --file .gitmodules --get-regexp '^submodule\..*\.url$')
+          foreach ($entry in $submoduleEntries) {
+            $parts = $entry -split '\s+', 2
+            if ($parts.Count -ne 2) {
+              throw "Unable to parse a UE4SS submodule URL from .gitmodules."
+            }
+            $key = $parts[0]
+            $url = $parts[1]
+            $repositoryPath = $null
+            if ($url -match '^git@github\.com:(.+)$') {
+              $repositoryPath = $Matches[1]
+            } elseif ($url -match '^ssh://git@github\.com/(.+)$') {
+              $repositoryPath = $Matches[1]
+            }
+            if ($repositoryPath) {
+              $httpsUrl = "https://x-access-token:$env:UE4SS_TOKEN@github.com/$repositoryPath"
+              git -C ue4ss-source config --file .gitmodules $key $httpsUrl
+              git -C ue4ss-source config --local $key $httpsUrl
+            }
+          }
+          git -C ue4ss-source submodule sync --recursive
+          git -C ue4ss-source submodule update --init --recursive
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          # UE4SS's pinned PatternSleuth submodule declares nightly.  Keep the
+          # nightly snapshot aligned with the pinned UE4SS revision instead of
+          # overriding it with a stable compiler.
+          toolchain: nightly-2026-05-16
+          # This third-party workspace has a known unused import.  The action
+          # defaults to -D warnings, which turns that upstream warning into a
+          # build failure; leave UE4SS's normal Rust warning policy intact.
+          rustflags: ""
+
+      - name: Configure production extension
+        shell: pwsh
+        run: >-
+          cmake -S . -B build-production -G "Visual Studio 17 2022" -A x64
+          -DCMAKE_SYSTEM_VERSION=10.0.26100.0
+          -DCMAKE_CONFIGURATION_TYPES=Game__Shipping__Win64
+          -DPALCENTER_BUILD_TESTS=OFF
+          -DPALCENTER_UE4SS_BUILD_MODE=PRODUCTION
+          -DPALCENTER_UE4SS_ROOT=${{ github.workspace }}/ue4ss-source
+          -DPALCENTER_BUILD_COMMIT=${{ github.sha }}
+          -DPALCENTER_BUILD_BRANCH=${{ github.head_ref || github.ref_name }}
+
+      - name: Build production Companion DLL
+        run: >-
+          cmake --build build-production
+          --config Game__Shipping__Win64
+          --target PalCenterCompanion
+          --parallel
+
+      - name: Package and validate UAT files
+        shell: pwsh
+        run: ./scripts/package-production.ps1 -BuildDirectory build-production -OutputDirectory artifacts
+
+      - name: Upload UAT package
+        uses: actions/upload-artifact@v4
+        with:
+          name: palcenter-companion-uat-${{ github.sha }}
+          path: |
+            artifacts/PalCenterCompanion-0.3.0-win64.zip
+            artifacts/PalCenterCompanion-0.3.0-win64.zip.sha256
+          if-no-files-found: error
+          retention-days: 14

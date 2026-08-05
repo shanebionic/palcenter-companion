@@ -51,6 +51,7 @@ Copy-Item -LiteralPath $productionDlls[0].FullName -Destination (Join-Path $pack
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "config/PalCenterCompanion.ini") -Destination (Join-Path $packageRoot "config/PalCenterCompanion.ini")
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "extension/enabled.txt") -Destination (Join-Path $packageRoot "enabled.txt")
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "packaging/README.txt") -Destination (Join-Path $packageRoot "README.txt")
+Copy-Item -LiteralPath (Join-Path $repositoryRoot "packaging/INSTALL.md") -Destination (Join-Path $packageRoot "INSTALL.md")
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "packaging/LICENSES/THIRD-PARTY-NOTICES.txt") -Destination (Join-Path $packageRoot "LICENSES/THIRD-PARTY-NOTICES.txt")
 
 $expectedFiles = @(
@@ -58,6 +59,7 @@ $expectedFiles = @(
   "config/PalCenterCompanion.ini",
   "enabled.txt",
   "README.txt",
+  "INSTALL.md",
   "LICENSES/THIRD-PARTY-NOTICES.txt"
 )
 foreach ($relativePath in $expectedFiles) {
