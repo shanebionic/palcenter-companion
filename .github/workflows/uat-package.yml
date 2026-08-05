@@ -25,8 +25,19 @@ jobs:
           repository: Okaetsu/RE-UE4SS
           ref: c838a8acaade1a0f860bdf249f039e58f4e10088
           token: ${{ secrets.UE4SS_TOKEN || github.token }}
-          submodules: recursive
+          submodules: false
           path: ue4ss-source
+
+      - name: Initialize authorized UE4SS dependencies
+        shell: pwsh
+        env:
+          UE4SS_TOKEN: ${{ secrets.UE4SS_TOKEN }}
+        run: |
+          if (-not $env:UE4SS_TOKEN) {
+            throw "The UE4SS_TOKEN repository secret is required to fetch the access-controlled UEPseudo submodule."
+          }
+          git -C ue4ss-source config url."https://x-access-token:$env:UE4SS_TOKEN@github.com/".insteadOf "git@github.com:"
+          git -C ue4ss-source submodule update --init --recursive
 
       - name: Set up Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
