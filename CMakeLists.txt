@@ -11,7 +11,9 @@ set(PALCENTER_UE4SS_ROOT "" CACHE PATH "Path to a compatible RE-UE4SS source che
 
 set(PALCENTER_PINNED_UE4SS_COMMIT "c838a8acaade1a0f860bdf249f039e58f4e10088")
 set(PALCENTER_PINNED_WINDOWS_SDK "10.0.26100.0")
-set(PALCENTER_PINNED_RUST_VERSION "1.88.0")
+# The pinned PatternSleuth submodule declares nightly; this is the nightly
+# snapshot contemporaneous with the pinned UE4SS revision.
+set(PALCENTER_PINNED_RUST_VERSION "1.97.0-nightly")
 set(PALCENTER_BUILD_COMMIT "unknown" CACHE STRING "Source commit embedded in diagnostics")
 set(PALCENTER_BUILD_BRANCH "unknown" CACHE STRING "Source branch embedded in diagnostics")
 string(TIMESTAMP PALCENTER_BUILD_DATE "%Y-%m-%dT%H:%M:%SZ" UTC)
